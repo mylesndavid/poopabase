@@ -1,0 +1,231 @@
+---
+title: "SQL Database"
+description: "Full relational SQL powered by libSQL — tables, joins, indexes, triggers, and everything else."
+---
+
+# SQL Database
+
+poopabase is, at its core, a SQL database. Everything else (collections, documents, memory) is built on top of SQL tables. You get full SQLite/libSQL support with no restrictions.
+
+## Creating tables
+
+```sql
+CREATE TABLE users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  email TEXT UNIQUE,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE posts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER REFERENCES users(id),
+  title TEXT NOT NULL,
+  body TEXT,
+  published BOOLEAN DEFAULT FALSE,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX idx_posts_user ON posts(user_id);
+CREATE INDEX idx_posts_published ON posts(published) WHERE published = TRUE;
+```
+
+## Querying
+
+All the SQL you'd expect works — joins, subqueries, CTEs, window functions, the lot.
+
+```sql
+-- Join with aggregation
+SELECT
+  u.name,
+  COUNT(p.id) AS post_count,
+  MAX(p.created_at) AS last_post
+FROM users u
+LEFT JOIN posts p ON p.user_id = u.id
+GROUP BY u.id
+ORDER BY post_count DESC;
+
+-- CTE with window function
+WITH ranked AS (
+  SELECT
+    title,
+    user_id,
+    ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY created_at DESC) AS rn
+  FROM posts
+  WHERE published = TRUE
+)
+SELECT * FROM ranked WHERE rn = 1;
+```
+
+## Connecting from code
+
+### Via the HTTP API
+
+Start the server with `poop serve`, then query from any language:
+
+<CodeGroup>
+```typescript TypeScript
+const poopabase = "http://localhost:3141";
+
+// Execute a query
+const res = await fetch(`${poopabase}/query`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    sql: "SELECT * FROM users WHERE email = ?",
+    params: ["myles@poopabase.dev"],
+  }),
+});
+
+const { rows } = await res.json();
+console.log(rows);
+```
+
+```python Python
+import requests
+
+POOPABASE = "http://localhost:3141"
+
+res = requests.post(f"{POOPABASE}/query", json={
+    "sql": "SELECT * FROM users WHERE email = ?",
+    "params": ["myles@poopabase.dev"],
+})
+
+rows = res.json()["rows"]
+print(rows)
+```
+</CodeGroup>
+
+### Via the Hrana protocol
+
+poopabase supports the [Hrana protocol](https://github.com/tursodatabase/libsql/blob/main/docs/HRANA_3_SPEC.md) over WebSocket, which means you can use the official libSQL client libraries:
+
+<CodeGroup>
+```typescript TypeScript (libSQL client)
+import { createClient } from "@libsql/client";
+
+const db = createClient({
+  url: "ws://localhost:3141",
+});
+
+const result = await db.execute({
+  sql: "SELECT * FROM users WHERE name = ?",
+  args: ["Myles"],
+});
+
+console.log(result.rows);
+```
+
+```python Python (libSQL client)
+import libsql_experimental as libsql
+
+conn = libsql.connect("myproject.poop.db")
+
+# Or connect to a running poopabase server:
+# conn = libsql.connect("ws://localhost:3141")
+
+result = conn.execute("SELECT * FROM users WHERE name = ?", ["Myles"])
+print(result.fetchall())
+```
+</CodeGroup>
+
+### Direct file access
+
+Since poopabase is just a libSQL/SQLite file, you can open it directly with any SQLite library:
+
+<CodeGroup>
+```typescript TypeScript (better-sqlite3)
+import Database from "better-sqlite3";
+
+const db = new Database("myproject.poop.db");
+const users = db.prepare("SELECT * FROM users").all();
+```
+
+```python Python (sqlite3)
+import sqlite3
+
+conn = sqlite3.connect("myproject.poop.db")
+cursor = conn.execute("SELECT * FROM users")
+users = cursor.fetchall()
+```
+</CodeGroup>
+
+<Warning>
+  If you open the file directly while `poop serve` is running, make sure you're only reading. Concurrent writes from two processes can cause issues. Use the HTTP API or Hrana protocol for writes when the server is running.
+</Warning>
+
+## Triggers
+
+SQLite triggers work as expected:
+
+```sql
+CREATE TRIGGER update_timestamp
+AFTER UPDATE ON users
+BEGIN
+  UPDATE users SET updated_at = datetime('now') WHERE id = NEW.id;
+END;
+```
+
+## JSON support
+
+SQLite's JSON operators work great for semi-structured data within SQL tables:
+
+```sql
+ALTER TABLE users ADD COLUMN metadata JSON;
+
+UPDATE users SET metadata = '{"plan": "pro", "features": ["search", "memory"]}'
+WHERE id = 1;
+
+-- Extract a value
+SELECT name, metadata->>'plan' AS plan FROM users;
+
+-- Query into arrays
+SELECT name FROM users
+WHERE EXISTS (
+  SELECT 1 FROM json_each(metadata->'features')
+  WHERE value = 'memory'
+);
+```
+
+<Info>
+  If you find yourself writing a lot of JSON queries, consider using [Collections mode](/features/collections) instead — it's designed for exactly this pattern.
+</Info>
+
+## CLI usage
+
+```bash
+# Interactive SQL shell
+poop shell
+
+# Execute a single query
+poop query "SELECT COUNT(*) FROM users"
+
+# Execute from a file
+poop query --file ./migrations/001_init.sql
+
+# Export as JSON
+poop query "SELECT * FROM users" --format json
+
+# Export as CSV
+poop query "SELECT * FROM users" --format csv
+```
+
+## Via MCP
+
+When connected as an MCP server, agents can run SQL using the `poopabase_query` tool:
+
+```
+Agent: Let me check how many users signed up today.
+→ poopabase_query: SELECT COUNT(*) FROM users WHERE created_at >= date('now')
+→ Result: [{"COUNT(*)": 42}]
+Agent: 42 users signed up today.
+```
+
+## libSQL extras
+
+Because poopabase uses libSQL (not vanilla SQLite), you get a few extras:
+
+- **`ALTER TABLE ... ADD COLUMN`** — works without the limitations of stock SQLite
+- **F32_BLOB** — native vector column type for embedding storage (used by [Hybrid Search](/features/search))
+- **Better WAL mode** — improved concurrent read performance
+- **Built-in extensions** — FTS5, JSON, math functions all included

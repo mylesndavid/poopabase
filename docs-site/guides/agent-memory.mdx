@@ -1,0 +1,203 @@
+---
+title: "Agent Memory System"
+description: "Give your AI agent persistent memory across conversations"
+---
+
+# Agent Memory System
+
+poopabase includes a built-in memory system that lets agents remember things across conversations. It follows the **observe, compact, recall** pattern:
+
+1. **Observe** -- record raw facts and observations as they happen
+2. **Compact** -- periodically compress observations into durable memories
+3. **Recall** -- retrieve relevant memories when the agent needs context
+
+All of this lives in the same `.poop.db` file as your SQL tables and document search indexes.
+
+## The observe / compact / recall pattern
+
+```
+User says something  -->  observe("User prefers dark mode")
+                               |
+                               v
+                      observations table (raw)
+                               |
+                          (compact)
+                               |
+                               v
+                       memories table (durable)
+                               |
+                          (recall)
+                               |
+                               v
+                    Agent's system prompt gets
+                    relevant memories injected
+```
+
+**Observations** are raw, timestamped facts. Every time the agent notices something worth remembering, it stores an observation. These accumulate quickly.
+
+**Memories** are compacted, deduplicated summaries. Compaction takes a batch of observations, merges related ones, and produces durable memories with an importance score.
+
+**Recall** searches both observations and memories using FTS5, returning the most relevant context for the current query.
+
+## Using memory from the CLI
+
+<CodeGroup>
+```bash Observe
+# Store an observation
+poop observe "User prefers TypeScript over JavaScript"
+poop observe "User is building a SaaS app for pet owners"
+poop observe "User's deployment target is Fly.io"
+```
+
+```bash Recall
+# Recall relevant memories
+poop recall "What tech stack does the user prefer?"
+
+# Returns:
+# [Observation] User prefers TypeScript over JavaScript
+# [Observation] User's deployment target is Fly.io
+```
+
+```bash Compact
+# Compact observations into durable memories
+poop compact
+
+# This merges related observations:
+# "User prefers TypeScript, deploys to Fly.io, building a pet SaaS"
+```
+</CodeGroup>
+
+## Using memory from the API
+
+Start the poopabase server and use the HTTP endpoints:
+
+```bash
+poop serve
+```
+
+<CodeGroup>
+```bash Observe (API)
+# Store an observation
+curl -X POST http://localhost:3141/memory/observe \
+  -H "Content-Type: application/json" \
+  -d '{"content": "User prefers dark mode and vim keybindings"}'
+```
+
+```bash Recall (API)
+# Recall relevant memories
+curl -X POST http://localhost:3141/memory/recall \
+  -H "Content-Type: application/json" \
+  -d '{"query": "user preferences", "limit": 5}'
+```
+</CodeGroup>
+
+## Using memory from MCP
+
+When poopabase is connected as an MCP server, agents get `poopabase_observe` and `poopabase_recall` tools automatically.
+
+```bash
+# Add poopabase as an MCP server for Claude Code
+claude mcp add poopabase -- poop serve --mcp
+```
+
+The agent can then call these tools during conversation:
+
+| MCP Tool | Description |
+|---|---|
+| `poopabase_observe` | Store an observation. Takes `content` (string). |
+| `poopabase_recall` | Recall memories. Takes `query` (string) and optional `limit` (number). |
+| `poopabase_compact` | Trigger compaction of observations into memories. |
+
+<Note>
+  MCP tools are the recommended way to give agents memory. The agent decides when to observe and what to recall -- you do not need to wire this up manually.
+</Note>
+
+## Example: remembering user preferences
+
+Here is a practical example of how memory works across multiple conversations.
+
+**Conversation 1:**
+
+```
+User: I'm building an app with Next.js and Tailwind. I deploy to Vercel.
+Agent: (observes: "User builds with Next.js, Tailwind, deploys to Vercel")
+Agent: Great stack! I'll keep that in mind...
+```
+
+**Conversation 2 (days later):**
+
+```
+User: How should I set up my database?
+Agent: (recalls: "User builds with Next.js, Tailwind, deploys to Vercel")
+Agent: Since you're on Vercel with Next.js, I'd recommend poopabase
+       with @libsql/client -- it works great as a local SQLite file
+       and you can sync it with Turso for production...
+```
+
+The agent did not need the user to repeat their stack. It recalled the observation from the previous conversation and tailored its answer accordingly.
+
+## When to compact (and why)
+
+Compaction turns a pile of raw observations into clean, deduplicated memories. Here is when to run it:
+
+- **After many observations accumulate** -- if you have 50+ observations, compaction merges related ones and removes noise
+- **Periodically** -- run `poop compact` on a schedule (e.g., daily) for long-running agents
+- **Before the observation table gets too large** -- FTS5 search is fast, but fewer, higher-quality memories are better than thousands of noisy observations
+
+**Why compact?**
+
+1. **Deduplication** -- "User likes TypeScript" observed 12 times becomes one memory
+2. **Summarization** -- related observations merge: "User prefers TS, deploys to Fly.io, uses vim" becomes one coherent memory
+3. **Importance scoring** -- memories get an importance score (0.0 to 1.0) so recall can prioritize what matters
+4. **Performance** -- fewer rows to search means faster recall
+
+```bash
+# See how many observations you have
+poop query "SELECT COUNT(*) FROM observations"
+
+# Compact when it gets large
+poop compact
+```
+
+## Memory tables schema
+
+Under the hood, memory is just SQL tables with FTS5 indexes:
+
+```sql
+-- Raw observations
+CREATE TABLE observations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  content TEXT NOT NULL,
+  source TEXT DEFAULT 'chat',
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+-- Compacted memories
+CREATE TABLE memories (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  content TEXT NOT NULL,
+  type TEXT DEFAULT 'memory',
+  importance REAL DEFAULT 0.5,
+  created_at TEXT DEFAULT (datetime('now')),
+  access_count INTEGER DEFAULT 0
+);
+
+-- FTS5 indexes for both
+CREATE VIRTUAL TABLE observations_fts USING fts5(
+  content, content=observations, content_rowid=id,
+  tokenize='porter unicode61'
+);
+
+CREATE VIRTUAL TABLE memories_fts USING fts5(
+  content, content=memories, content_rowid=id,
+  tokenize='porter unicode61'
+);
+```
+
+You can query these tables directly with SQL for full control over how your agent remembers things.
+
+## Next steps
+
+- Build a full chat app with memory -- see [AI Chat App](/guides/ai-chat-app)
+- Learn about document search -- see [Document Search](/features/documents)
+- Explore the memory feature in depth -- see [Agent Memory](/features/memory)

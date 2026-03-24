@@ -1,0 +1,275 @@
+---
+title: "MCP Server"
+description: "Connect poopabase to Claude Code, Cursor, Windsurf, and any MCP-compatible AI agent."
+---
+
+# MCP Server
+
+The [Model Context Protocol (MCP)](https://modelcontextprotocol.io) is an open standard that lets AI agents use tools. poopabase ships an MCP server that exposes all five database modes as tools — so your agent can query SQL, search documents, manage collections, and build memories without you writing any glue code.
+
+## What is MCP?
+
+MCP is a protocol (think: USB for AI agents) that standardizes how agents discover and call tools. Instead of every agent having its own plugin system, MCP gives them a shared interface.
+
+When you connect poopabase as an MCP server, your agent gets 10 tools it can call at any time during a conversation:
+
+```
+Agent thinks: "I need to find docs about auth"
+Agent calls: poopabase_search(query="authentication")
+Agent receives: [ranked search results]
+Agent thinks: "I should remember this user prefers OAuth"
+Agent calls: poopabase_observe(content="user prefers OAuth over API keys")
+```
+
+The agent decides when and how to use these tools. You don't need to wire anything up.
+
+## Setup
+
+<Tabs>
+  <Tab title="Claude Code">
+    One command:
+
+    ```bash
+    claude mcp add poopabase -- npx @poopabase/mcp --db ./myproject.poop.db
+    ```
+
+    This registers poopabase as an MCP server in Claude Code. Next time you start a conversation, all 10 tools will be available.
+
+    To verify it's working:
+
+    ```bash
+    claude mcp list
+    ```
+  </Tab>
+
+  <Tab title="Cursor">
+    Add to `.cursor/mcp.json` in your project root:
+
+    ```json
+    {
+      "mcpServers": {
+        "poopabase": {
+          "command": "npx",
+          "args": ["@poopabase/mcp", "--db", "./myproject.poop.db"]
+        }
+      }
+    }
+    ```
+
+    Restart Cursor and the tools will appear in the agent's tool list.
+  </Tab>
+
+  <Tab title="Windsurf">
+    Add to `~/.windsurf/mcp.json`:
+
+    ```json
+    {
+      "mcpServers": {
+        "poopabase": {
+          "command": "npx",
+          "args": ["@poopabase/mcp", "--db", "./myproject.poop.db"]
+        }
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="Generic MCP Client">
+    The MCP server is a standard stdio transport. Start it directly:
+
+    ```bash
+    npx @poopabase/mcp --db ./myproject.poop.db
+    ```
+
+    Any MCP client that supports stdio transport can connect to it.
+  </Tab>
+</Tabs>
+
+<Note>
+  The MCP server operates directly on the `.poop.db` file — it doesn't need `poop serve` to be running. It's a separate process that reads and writes the database file.
+</Note>
+
+## Available tools
+
+The poopabase MCP server exposes 10 tools:
+
+### SQL
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `poopabase_query` | Execute a SQL query and return results | `sql` (string), `params` (array, optional) |
+
+```
+→ poopabase_query: {"sql": "SELECT * FROM users WHERE active = ?", "params": [true]}
+← [{"id": 1, "name": "Myles", "active": true}]
+```
+
+### Search
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `poopabase_search` | Search ingested documents | `query` (string), `limit` (number, optional), `expand` (boolean, optional) |
+| `poopabase_ingest` | Ingest content into the search index | `content` (string), `source` (string), `metadata` (object, optional) |
+
+```
+→ poopabase_search: {"query": "authentication", "limit": 5}
+← [{"source": "auth.md", "content": "...", "score": 2.34}]
+```
+
+```
+→ poopabase_ingest: {"content": "# API Guide\n\n...", "source": "api-guide.md"}
+← {"chunks": 8, "source": "api-guide.md"}
+```
+
+### Collections
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `poopabase_collection_insert` | Insert a document into a collection | `collection` (string), `document` (object) |
+| `poopabase_collection_find` | Query documents in a collection | `collection` (string), `filter` (object, optional), `limit` (number, optional) |
+| `poopabase_collection_delete` | Delete documents from a collection | `collection` (string), `filter` (object, optional), `id` (string, optional) |
+
+```
+→ poopabase_collection_insert: {
+    "collection": "tasks",
+    "document": {"title": "Ship it", "priority": "high"}
+  }
+← {"id": "a1b2c3d4"}
+```
+
+```
+→ poopabase_collection_find: {
+    "collection": "tasks",
+    "filter": {"priority": "high"}
+  }
+← [{"id": "a1b2c3d4", "data": {"title": "Ship it", "priority": "high"}}]
+```
+
+### Memory
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `poopabase_observe` | Record an observation | `content` (string), `tags` (array, optional) |
+| `poopabase_recall` | Retrieve relevant memories | `query` (string), `limit` (number, optional) |
+| `poopabase_compact` | Compact observations into memories | (none) |
+
+```
+→ poopabase_observe: {"content": "user prefers functional style over OOP", "tags": ["preferences"]}
+← {"id": 42}
+```
+
+```
+→ poopabase_recall: {"query": "coding preferences"}
+← [{"content": "User prefers functional style over OOP", "confidence": "medium"}]
+```
+
+```
+→ poopabase_compact: {}
+← {"compacted": 8, "memories_created": 3, "memories_updated": 1}
+```
+
+### Status
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `poopabase_status` | Get database status and statistics | (none) |
+
+```
+→ poopabase_status: {}
+← {
+    "database": "myproject.poop.db",
+    "size": "2.4 MB",
+    "tables": 5,
+    "collections": 2,
+    "documents": 147,
+    "observations": 23,
+    "memories": 8
+  }
+```
+
+## Example agent conversation
+
+Here's what it looks like when an agent uses poopabase tools in a real conversation:
+
+```
+User: Help me add error handling to the auth module.
+
+Agent: Let me check what docs we have about the auth module.
+→ poopabase_search: {"query": "auth module error handling"}
+← [{"source": "auth.md", "section": "Error Handling", "content": "..."}]
+
+Agent: And let me recall any preferences about error handling.
+→ poopabase_recall: {"query": "error handling preferences"}
+← [{"content": "User prefers custom error classes over generic Error"}]
+
+Agent: Let me also check the current auth code.
+→ poopabase_query: {"sql": "SELECT source, content FROM _documents WHERE source LIKE '%auth%'"}
+
+Agent: Based on the docs and your preference for custom error classes,
+here's what I'd suggest...
+
+[Agent provides implementation]
+
+User: Perfect, let's go with that.
+
+Agent: → poopabase_observe: {
+  "content": "auth module uses custom error classes: AuthError, TokenExpiredError, InvalidCredentialsError"
+}
+```
+
+The agent seamlessly uses search (to find relevant docs), recall (to load preferences), SQL (for a specific lookup), and observe (to record what was decided) — all in one conversation.
+
+## Configuration
+
+### Database path
+
+The `--db` flag tells the MCP server where to find (or create) the database:
+
+```bash
+# Relative path (resolved from working directory)
+npx @poopabase/mcp --db ./myproject.poop.db
+
+# Absolute path
+npx @poopabase/mcp --db /Users/myles/projects/myproject.poop.db
+```
+
+### Read-only mode
+
+If you want agents to search and recall but not modify data:
+
+```bash
+npx @poopabase/mcp --db ./myproject.poop.db --readonly
+```
+
+In read-only mode, `poopabase_query` only allows SELECT statements, and write tools (`observe`, `ingest`, `collection_insert`, `collection_delete`, `compact`) are disabled.
+
+### Verbose logging
+
+For debugging:
+
+```bash
+npx @poopabase/mcp --db ./myproject.poop.db --verbose
+```
+
+This logs all tool calls and their results to stderr.
+
+## Tips for building with MCP
+
+<CardGroup cols={2}>
+  <Card title="Pre-load context">
+    Before starting work, ingest relevant project files so the agent can search them. Run `poop ingest ./docs/ ./README.md` once and every conversation benefits.
+  </Card>
+  <Card title="Let the agent decide">
+    Don't tell the agent when to use tools. MCP tools have descriptions — the agent figures out when to search, observe, or recall on its own.
+  </Card>
+  <Card title="Compact between sessions">
+    Run `poop compact` after a few conversations. This keeps memory efficient and recall quality high.
+  </Card>
+  <Card title="Check status">
+    Use `poopabase_status` to see how much data is in the database. Useful for debugging when search returns no results.
+  </Card>
+</CardGroup>
+
+<Warning>
+  MCP tools run with the same permissions as the process. If the agent can call `poopabase_query`, it can run any SQL — including `DROP TABLE`. Use `--readonly` in production or when connecting untrusted agents.
+</Warning>

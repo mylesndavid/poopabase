@@ -1,0 +1,188 @@
+---
+title: "Build a Knowledge Base"
+description: "Ingest docs and make them searchable with FTS5"
+---
+
+# Build a Knowledge Base
+
+Turn a folder of markdown files into a searchable knowledge base in under five minutes. poopabase handles ingestion, chunking, and FTS5 indexing -- you just point it at your docs.
+
+<Steps>
+
+### Initialize the database
+
+```bash
+poop init kb
+```
+
+This creates `kb.poop.db` with the built-in document tables, FTS5 indexes, and memory system ready to go.
+
+### Ingest your docs
+
+Point `poop ingest` at a folder of markdown, text, or code files:
+
+```bash
+poop ingest ./docs/
+```
+
+poopabase will:
+1. Read every file in the directory (recursively)
+2. Split each file into chunks using structure-aware chunking (splits on headings)
+3. Insert chunks into the `chunks` table
+4. Automatically populate the FTS5 index via triggers
+
+You can also ingest individual files:
+
+```bash
+poop ingest ./README.md
+poop ingest ./notes/meeting-2024-01-15.txt
+```
+
+### Search from the CLI
+
+Search your knowledge base directly from the terminal:
+
+```bash
+poop search "how to deploy"
+```
+
+This runs a full-text search using FTS5 with BM25 ranking and returns the most relevant chunks. Results include the source file and section heading for context.
+
+### Start the API server
+
+Serve your knowledge base over HTTP:
+
+```bash
+poop serve
+```
+
+This starts the poopabase HTTP API on port 3141 (by default). You can now search programmatically:
+
+```bash
+curl -X POST http://localhost:3141/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "deployment instructions", "limit": 5}'
+```
+
+### Query from your app
+
+Connect to poopabase from any application using `@libsql/client`:
+
+```bash
+npm install @libsql/client
+```
+
+```typescript
+import { createClient } from "@libsql/client";
+
+const db = createClient({ url: "file:kb.poop.db" });
+
+// Search using FTS5 directly
+const results = await db.execute({
+  sql: `SELECT c.content, c.section, d.source
+        FROM chunks_fts
+        JOIN chunks c ON c.id = chunks_fts.rowid
+        JOIN documents d ON d.id = c.document_id
+        WHERE chunks_fts MATCH ?
+        ORDER BY rank
+        LIMIT ?`,
+  args: ["deployment", 5],
+});
+
+for (const row of results.rows) {
+  console.log(`[${row.source} > ${row.section}]`);
+  console.log(row.content);
+  console.log("---");
+}
+```
+
+You can also write custom FTS5 queries for more control:
+
+<CodeGroup>
+```sql Phrase search
+-- Exact phrase match
+SELECT c.content, d.source
+FROM chunks_fts
+JOIN chunks c ON c.id = chunks_fts.rowid
+JOIN documents d ON d.id = c.document_id
+WHERE chunks_fts MATCH '"deploy to production"'
+ORDER BY rank LIMIT 10;
+```
+
+```sql Boolean operators
+-- OR search
+SELECT c.content FROM chunks_fts
+JOIN chunks c ON c.id = chunks_fts.rowid
+WHERE chunks_fts MATCH 'deploy OR release OR ship'
+ORDER BY rank LIMIT 10;
+```
+
+```sql Column filter with BM25
+-- Use bm25() for explicit scoring
+SELECT c.content, bm25(chunks_fts) as score
+FROM chunks_fts
+JOIN chunks c ON c.id = chunks_fts.rowid
+WHERE chunks_fts MATCH 'api'
+ORDER BY score LIMIT 10;
+```
+
+```sql Prefix search
+-- Prefix matching with *
+SELECT c.content FROM chunks_fts
+JOIN chunks c ON c.id = chunks_fts.rowid
+WHERE chunks_fts MATCH 'config*'
+ORDER BY rank LIMIT 10;
+```
+</CodeGroup>
+
+### Add MCP so agents can search
+
+Give Claude Code (or any MCP-compatible agent) access to your knowledge base:
+
+```bash
+claude mcp add poopabase-kb -- poop serve --db kb.poop.db --mcp
+```
+
+Now the agent can use the `poopabase_search` tool to search your docs, `poopabase_query` to run SQL, and `poopabase_ingest` to add new documents -- all within the conversation.
+
+<Note>
+  The MCP server exposes the same capabilities as the CLI and HTTP API. Your agent can search, query, ingest, and manage memory through MCP tools.
+</Note>
+
+</Steps>
+
+## Custom FTS5 queries
+
+The FTS5 index uses the `porter unicode61` tokenizer, which means:
+- **Stemming**: "deploying", "deployed", and "deployment" all match "deploy"
+- **Unicode support**: accented characters and non-Latin scripts work correctly
+- **BM25 ranking**: results are ranked by relevance automatically when you `ORDER BY rank`
+
+Common FTS5 query patterns:
+
+| Pattern | Example | Description |
+|---|---|---|
+| Simple term | `deploy` | Match any document containing "deploy" (or stems) |
+| Phrase | `"api key"` | Match the exact phrase |
+| OR | `deploy OR ship` | Match either term |
+| AND | `deploy AND production` | Match both terms |
+| NOT | `deploy NOT staging` | Exclude documents with "staging" |
+| Prefix | `config*` | Match any term starting with "config" |
+| NEAR | `NEAR(api key, 5)` | Terms within 5 tokens of each other |
+
+## Keeping the index fresh
+
+The FTS5 index stays in sync automatically through database triggers. When you insert, update, or delete rows in the `chunks` table, the corresponding FTS5 entries are updated.
+
+If you need to rebuild the index from scratch:
+
+```sql
+-- Rebuild the FTS5 index
+INSERT INTO chunks_fts(chunks_fts) VALUES('rebuild');
+```
+
+## Next steps
+
+- Add agent memory so your knowledge base learns from interactions -- see [Agent Memory](/guides/agent-memory)
+- Combine FTS5 with vector search for hybrid retrieval -- see [Hybrid Search](/features/search)
+- Build a full chat app on top of your knowledge base -- see [AI Chat App](/guides/ai-chat-app)

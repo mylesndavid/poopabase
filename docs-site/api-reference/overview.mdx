@@ -1,0 +1,87 @@
+---
+title: "API Overview"
+description: "HTTP API reference for poopabase — base URL, authentication, and protocol details."
+---
+
+# API Overview
+
+poopabase exposes a REST API when you run the HTTP server. All endpoints accept and return JSON.
+
+## Starting the server
+
+```bash
+poop serve --port 3141
+```
+
+The default base URL is:
+
+```
+http://localhost:3141
+```
+
+## Authentication
+
+Token-based authentication is optional. If configured, pass the token in the `Authorization` header:
+
+```
+Authorization: Bearer <your-token>
+```
+
+Start the server with a token:
+
+```bash
+poop serve --token my-secret-token
+```
+
+## Protocols
+
+poopabase supports two protocols:
+
+| Protocol | Endpoint | Description |
+|----------|----------|-------------|
+| REST API | `/*` | Standard JSON REST endpoints |
+| Hrana v3 | `/v3/pipeline` | Compatible with `@libsql/client` SDKs |
+
+The Hrana v3 protocol at `/v3/pipeline` lets you use the standard `@libsql/client` TypeScript SDK to connect to poopabase:
+
+```typescript
+import { createClient } from "@libsql/client";
+
+const client = createClient({
+  url: "http://localhost:3141",
+});
+
+const result = await client.execute("SELECT * FROM users");
+```
+
+## CORS
+
+CORS is enabled by default. The server accepts requests from any origin.
+
+## Response format
+
+All responses are JSON. Successful responses return the relevant data directly. Errors return:
+
+```json
+{
+  "error": "Description of what went wrong"
+}
+```
+
+## Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/query` | [Execute SQL](/api-reference/query) |
+| `POST` | `/search` | [Search documents](/api-reference/search) |
+| `POST` | `/collections/:name` | [Insert into collection](/api-reference/collections) |
+| `GET` | `/collections/:name` | [Find in collection](/api-reference/collections) |
+| `DELETE` | `/collections/:name/:id` | [Delete from collection](/api-reference/collections) |
+| `GET` | `/collections` | [List collections](/api-reference/collections) |
+| `POST` | `/docs/ingest` | [Ingest document](/api-reference/documents) |
+| `GET` | `/docs` | [List documents](/api-reference/documents) |
+| `POST` | `/memory/observe` | [Store observation](/api-reference/memory) |
+| `POST` | `/memory/recall` | [Recall memories](/api-reference/memory) |
+| `POST` | `/memory/compact` | [Compact memories](/api-reference/memory) |
+| `GET` | `/status` | [Database status](/api-reference/memory) |
+| `POST` | `/v3/pipeline` | [Hrana v3 protocol](/api-reference/query) |

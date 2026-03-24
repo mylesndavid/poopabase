@@ -1,0 +1,106 @@
+---
+title: "Search Documents"
+description: "Full-text search across ingested documents using FTS5 and BM25 ranking."
+---
+
+# Search Documents
+
+Search across all ingested documents using full-text search. Results are ranked by BM25 relevance.
+
+## `POST /search`
+
+<ParamField body="query" type="string" required>
+  The search query string.
+</ParamField>
+
+<ParamField body="limit" type="number">
+  Maximum number of results to return. Defaults to `10`.
+</ParamField>
+
+### Response
+
+<ResponseField name="results" type="array">
+  Array of matching document chunks, ranked by relevance.
+</ResponseField>
+
+Each result contains:
+
+<ResponseField name="results[].id" type="string">
+  Unique identifier for the chunk.
+</ResponseField>
+
+<ResponseField name="results[].content" type="string">
+  The matched text content.
+</ResponseField>
+
+<ResponseField name="results[].source" type="string">
+  Source file the chunk was extracted from.
+</ResponseField>
+
+<ResponseField name="results[].section" type="string">
+  Section heading within the source document.
+</ResponseField>
+
+<ResponseField name="results[].score" type="number">
+  BM25 relevance score. Lower (more negative) is more relevant.
+</ResponseField>
+
+### Examples
+
+<CodeGroup>
+
+```bash curl
+curl -X POST http://localhost:3141/search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "authentication",
+    "limit": 5
+  }'
+```
+
+```typescript TypeScript
+const res = await fetch("http://localhost:3141/search", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    query: "authentication",
+    limit: 5,
+  }),
+});
+const { results } = await res.json();
+```
+
+```python Python
+import requests
+
+res = requests.post("http://localhost:3141/search", json={
+    "query": "authentication",
+    "limit": 5
+})
+results = res.json()["results"]
+```
+
+</CodeGroup>
+
+### Response example
+
+```json
+{
+  "results": [
+    {
+      "id": "chunk_a1b2c3",
+      "content": "## Authentication\n\nUsers authenticate via JWT tokens...",
+      "source": "docs/auth.md",
+      "section": "Authentication",
+      "score": -4.231
+    },
+    {
+      "id": "chunk_d4e5f6",
+      "content": "The auth middleware validates tokens on every request...",
+      "source": "docs/middleware.md",
+      "section": "Middleware",
+      "score": -3.112
+    }
+  ]
+}
+```

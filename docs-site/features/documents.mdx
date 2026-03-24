@@ -1,0 +1,286 @@
+---
+title: "Document Search"
+description: "Ingest files, chunk them intelligently, and search with FTS5 full-text search."
+---
+
+# Document Search
+
+poopabase can ingest markdown, text, and code files, chunk them into searchable pieces, and let you search across everything with full-text search. Think of it as a local search engine for your project's knowledge.
+
+## Ingesting documents
+
+<Tabs>
+  <Tab title="CLI">
+    ```bash
+    # Ingest a single file
+    poop ingest ./README.md
+
+    # Ingest a directory (recursively)
+    poop ingest ./docs/
+
+    # Ingest with a specific source tag
+    poop ingest ./docs/ --source "project-docs"
+
+    # Ingest only specific file types
+    poop ingest ./src/ --glob "*.md,*.txt"
+    ```
+  </Tab>
+
+  <Tab title="HTTP API">
+    ```bash
+    curl -X POST http://localhost:3141/documents/ingest \
+      -H "Content-Type: application/json" \
+      -d '{
+        "content": "# Auth Guide\n\nTo authenticate, use Bearer tokens...",
+        "source": "auth-guide.md",
+        "metadata": {"category": "guides"}
+      }'
+    ```
+
+    ```typescript
+    await fetch("http://localhost:3141/documents/ingest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        content: "# Auth Guide\n\nTo authenticate, use Bearer tokens...",
+        source: "auth-guide.md",
+        metadata: { category: "guides" },
+      }),
+    });
+    ```
+  </Tab>
+
+  <Tab title="MCP">
+    ```
+    Agent: I'll index that document for you.
+    → poopabase_ingest: {
+        "content": "# Auth Guide\n\nTo authenticate...",
+        "source": "auth-guide.md"
+      }
+    → Result: {"chunks": 12, "source": "auth-guide.md"}
+    ```
+  </Tab>
+</Tabs>
+
+## Structure-aware chunking
+
+poopabase doesn't blindly split text every N characters. It understands document structure:
+
+1. **Markdown headers** — splits on `#`, `##`, `###` boundaries. Each section becomes its own chunk.
+2. **Paragraph breaks** — within a section, double newlines create chunk boundaries.
+3. **Code blocks** — fenced code blocks are kept together as single chunks.
+4. **Size limits** — if a section is still too large, it's split at sentence boundaries.
+
+Each chunk retains metadata about its position:
+
+```json
+{
+  "id": "chunk_a1b2c3",
+  "source": "docs/auth.md",
+  "content": "To authenticate API requests, include a Bearer token in the Authorization header...",
+  "section": "Authentication > Bearer Tokens",
+  "position": 3,
+  "metadata": {}
+}
+```
+
+This means search results come with context — you know which file and section a result came from.
+
+## Searching documents
+
+<Tabs>
+  <Tab title="CLI">
+    ```bash
+    # Basic search
+    poop search "authentication"
+
+    # Search with result limit
+    poop search "bearer token" --limit 5
+
+    # Search and expand context (include neighboring chunks)
+    poop search "oauth flow" --expand
+
+    # Search within a specific source
+    poop search "database schema" --source "architecture.md"
+    ```
+  </Tab>
+
+  <Tab title="HTTP API">
+    ```bash
+    curl -X POST http://localhost:3141/search \
+      -H "Content-Type: application/json" \
+      -d '{"query": "authentication", "limit": 10}'
+    ```
+
+    <CodeGroup>
+    ```typescript TypeScript
+    const res = await fetch("http://localhost:3141/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: "authentication bearer token",
+        limit: 10,
+        expand: true,
+      }),
+    });
+
+    const { results } = await res.json();
+    // results: [{ id, source, content, section, score }, ...]
+    ```
+
+    ```python Python
+    import requests
+
+    res = requests.post("http://localhost:3141/search", json={
+        "query": "authentication bearer token",
+        "limit": 10,
+        "expand": True,
+    })
+
+    results = res.json()["results"]
+    ```
+    </CodeGroup>
+  </Tab>
+
+  <Tab title="MCP">
+    ```
+    Agent: Let me search the docs for info about authentication.
+    → poopabase_search: {"query": "authentication flow"}
+    → Result: [
+        {"source": "auth.md", "section": "Overview", "content": "...", "score": 2.34},
+        {"source": "api.md", "section": "Auth", "content": "...", "score": 1.87}
+      ]
+    Agent: Based on the docs, authentication works by...
+    ```
+  </Tab>
+</Tabs>
+
+## How FTS5 search works
+
+Under the hood, poopabase uses SQLite's [FTS5 extension](https://www.sqlite.org/fts5.html) for full-text search.
+
+### BM25 ranking
+
+Results are ranked using the **BM25 algorithm** — the same ranking function used by Elasticsearch and other serious search engines. BM25 considers:
+
+- **Term frequency (TF)** — how often the search term appears in a chunk
+- **Inverse document frequency (IDF)** — rare terms are weighted higher than common ones
+- **Document length** — shorter documents with the search term rank higher than long ones that happen to mention it
+
+### Tokenization
+
+Text is tokenized using the `unicode61` tokenizer, which:
+
+- Lowercases everything
+- Handles Unicode characters properly
+- Splits on word boundaries
+- Strips diacritics (so "cafe" matches "caf\u00e9")
+
+### Query syntax
+
+FTS5 supports a rich query syntax:
+
+```bash
+# Simple query — matches any of these words
+poop search "authentication token"
+
+# Phrase query — must be adjacent
+poop search '"bearer token"'
+
+# Boolean AND — both terms must be present
+poop search "authentication AND oauth"
+
+# Boolean NOT — exclude results
+poop search "authentication NOT basic"
+
+# Prefix matching
+poop search "auth*"
+
+# NEAR — terms must be within 10 words of each other
+poop search "NEAR(token authentication, 10)"
+```
+
+## Context expansion
+
+When `--expand` is used, poopabase returns not just the matching chunk, but also the chunks immediately before and after it from the same source document. This gives agents more context to work with.
+
+```bash
+poop search "oauth" --expand
+```
+
+Without expand:
+```
+[Chunk 5] "OAuth 2.0 uses authorization codes to exchange for access tokens..."
+```
+
+With expand:
+```
+[Chunk 4] "Before implementing OAuth, you'll need to register your application..."
+[Chunk 5] "OAuth 2.0 uses authorization codes to exchange for access tokens..."  ← match
+[Chunk 6] "Once you have an access token, include it in the Authorization header..."
+```
+
+This is especially useful for MCP-connected agents who need to understand the full picture, not just a snippet.
+
+## Direct SQL access
+
+You can query the FTS5 index directly with SQL for full control:
+
+```sql
+-- Basic FTS5 search with ranking
+SELECT
+  d.source,
+  d.content,
+  d.section,
+  fts.rank AS score
+FROM _documents_fts fts
+JOIN _documents d ON d.id = fts.rowid
+WHERE _documents_fts MATCH 'authentication'
+ORDER BY fts.rank
+LIMIT 10;
+
+-- Highlight matching terms
+SELECT
+  d.source,
+  highlight(_documents_fts, 0, '<b>', '</b>') AS highlighted
+FROM _documents_fts fts
+JOIN _documents d ON d.id = fts.rowid
+WHERE _documents_fts MATCH 'bearer token';
+
+-- Snippet with context
+SELECT
+  d.source,
+  snippet(_documents_fts, 0, '...', '...', '', 32) AS snippet
+FROM _documents_fts fts
+JOIN _documents d ON d.id = fts.rowid
+WHERE _documents_fts MATCH 'oauth';
+```
+
+## Re-ingesting documents
+
+If a file changes, re-ingest it. poopabase will replace the old chunks:
+
+```bash
+poop ingest ./docs/auth.md
+# Replaced 12 chunks → 14 chunks for auth.md
+```
+
+To clear all documents and start fresh:
+
+```bash
+poop ingest --clear
+```
+
+<Warning>
+  `--clear` removes all ingested documents and their FTS5 index. This can't be undone (unless you re-ingest everything).
+</Warning>
+
+## Supported file types
+
+| Type | Extension | Notes |
+|------|-----------|-------|
+| Markdown | `.md`, `.mdx` | Structure-aware chunking on headers |
+| Plain text | `.txt` | Chunked by paragraphs |
+| Code | `.js`, `.ts`, `.py`, `.go`, etc. | Chunked by functions/classes where possible |
+| HTML | `.html` | Stripped of tags, then chunked |
+| JSON | `.json` | Stringified and chunked |

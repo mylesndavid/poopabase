@@ -1,0 +1,216 @@
+---
+title: "Core Concepts"
+description: "Understand how poopabase's five modes work together in a single database file."
+---
+
+# Core Concepts
+
+poopabase is five databases in a trenchcoat. Here's what each one does and how they fit together.
+
+## The five modes
+
+| Mode | What it does | Think of it as |
+|------|-------------|----------------|
+| **SQL** | Relational tables, joins, indexes | SQLite/Postgres |
+| **Collections** | Schemaless JSON documents | MongoDB |
+| **Documents** | Full-text search over ingested files | Elasticsearch |
+| **Search** | Hybrid keyword + vector search | Algolia + Pinecone |
+| **Memory** | Agent memory across conversations | A brain |
+
+All five modes read and write to the same `.poop.db` file. They're not separate systems glued together — they're different interfaces to one SQLite database.
+
+## SQL mode
+
+This is plain SQL. If you know SQLite, you know this.
+
+```sql
+CREATE TABLE users (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  email TEXT UNIQUE
+);
+
+CREATE INDEX idx_users_email ON users(email);
+
+INSERT INTO users (name, email) VALUES ('Myles', 'myles@poopabase.dev');
+
+SELECT * FROM users WHERE email LIKE '%@poopabase%';
+```
+
+Under the hood, poopabase uses [libSQL](https://github.com/tursodatabase/libsql), a fork of SQLite maintained by Turso. This means you get full SQL support plus extras like vector columns and better concurrent access.
+
+## Collections (NoSQL)
+
+Collections let you store JSON documents without defining a schema first. Useful when your data shape is evolving or you just want to throw stuff in and figure it out later.
+
+```bash
+poop collect insert users '{"name": "Myles", "role": "admin", "prefs": {"theme": "dark"}}'
+```
+
+Under the hood, this creates a table like:
+
+```sql
+CREATE TABLE IF NOT EXISTS _collection_users (
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+  data JSON NOT NULL,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+```
+
+When you query collections, poopabase uses SQLite's JSON operators:
+
+```sql
+-- This is what `poop collect find users --filter '{"role": "admin"}'` runs
+SELECT * FROM _collection_users WHERE data->>'role' = 'admin';
+
+-- You can query nested fields too
+SELECT * FROM _collection_users WHERE data->>'prefs'->>'theme' = 'dark';
+```
+
+The `->>` operator extracts a JSON value as text. You get the MongoDB-style developer experience, but it's just SQL under the hood — which means you can join collections with regular tables if you want.
+
+## Documents & full-text search
+
+poopabase can ingest files (markdown, text, code) and make them searchable using SQLite's FTS5 extension.
+
+### How ingestion works
+
+When you ingest a file, poopabase:
+
+1. **Reads the file** and detects its type
+2. **Chunks it** using structure-aware splitting — it splits on markdown headers (`##`), paragraph breaks, and logical boundaries rather than dumb character counts
+3. **Stores each chunk** in the `_documents` table with metadata (source file, position, section title)
+4. **Indexes each chunk** in an FTS5 virtual table for full-text search
+
+```bash
+poop ingest ./docs/architecture.md
+# Ingested 23 chunks from architecture.md
+```
+
+### How FTS5 search works
+
+[FTS5](https://www.sqlite.org/fts5.html) is SQLite's built-in full-text search engine. It supports:
+
+- **BM25 ranking** — the industry-standard relevance algorithm (same one Elasticsearch uses). It considers term frequency, document length, and inverse document frequency.
+- **Tokenization** — text is broken into tokens (words) using the `unicode61` tokenizer, which handles Unicode properly.
+- **Prefix queries** — search for `auth*` to match "authentication", "authorization", etc.
+- **Boolean operators** — `auth AND NOT oauth` works.
+
+```bash
+poop search "authentication flow"
+# Returns ranked results with snippet previews
+```
+
+The underlying SQL looks like:
+
+```sql
+SELECT
+  d.id, d.source, d.content, d.metadata,
+  rank AS score
+FROM _documents_fts fts
+JOIN _documents d ON d.id = fts.rowid
+WHERE _documents_fts MATCH 'authentication flow'
+ORDER BY rank;
+```
+
+### Context expansion
+
+When you get a search result, you often want to see what's around it. poopabase can expand results to include neighboring chunks from the same document, giving your agent more context.
+
+## Agent Memory
+
+This is the part that makes poopabase actually useful for agents. Memory has three stages:
+
+### 1. Observe
+
+Raw observations go in. These are facts, preferences, notes — anything the agent notices.
+
+```bash
+poop observe "user prefers TypeScript over Python"
+poop observe "user is building a SaaS for dog walkers"
+poop observe "user's deployment target is Cloudflare Workers"
+```
+
+Each observation is stored with a timestamp and source tag. Think of these as sticky notes.
+
+### 2. Compact
+
+Over time, observations pile up. Compaction groups related observations into durable, summarized memories.
+
+```bash
+poop compact
+```
+
+For example, these observations:
+- "user prefers dark mode"
+- "user set theme to dark in settings"
+- "user asked about dark mode support"
+
+Get compacted into one memory:
+- **"User strongly prefers dark mode"** (confidence: high, sources: 3)
+
+Compaction is idempotent — run it as often as you want.
+
+### 3. Recall
+
+Retrieve memories by relevance:
+
+```bash
+poop recall "what does the user prefer?"
+# → User strongly prefers dark mode
+# → User prefers TypeScript over Python
+# → User's deployment target is Cloudflare Workers
+```
+
+Recall searches across both raw observations and compacted memories, ranking by relevance and recency.
+
+### How agents use this
+
+In practice, an agent calls `observe` during a conversation to note important things, and `recall` at the start of a new conversation to load relevant context. Compaction runs periodically (or on demand) to keep memory efficient.
+
+```
+Conversation 1:
+  Agent observes: "user is allergic to peanuts"
+  Agent observes: "user prefers Italian food"
+
+  ↓ compact ↓
+
+Conversation 2:
+  Agent recalls: "food preferences"
+  → User prefers Italian food, is allergic to peanuts
+```
+
+## MCP integration
+
+The [Model Context Protocol](https://modelcontextprotocol.io) lets AI agents use tools. poopabase exposes all five modes as MCP tools, so any MCP-compatible agent (Claude Code, Cursor, Windsurf) can:
+
+- Run SQL queries
+- Search documents
+- Insert and query collections
+- Observe and recall memories
+
+The MCP server is a thin wrapper — it translates tool calls into the same operations the CLI and HTTP API use. See the [MCP Server docs](/features/mcp) for the full list of tools.
+
+## The .poop.db file
+
+Everything lives in one file. This is intentional.
+
+```
+myproject.poop.db
+├── User tables (SQL mode)
+├── _collection_* tables (Collections mode)
+├── _documents table + _documents_fts index (Documents mode)
+├── _memories + _observations tables (Memory mode)
+└── _poopabase_meta (internal state)
+```
+
+Benefits of single-file architecture:
+
+- **Portable** — `cp myproject.poop.db ~/backup/` and you're done
+- **No server required** — it's just SQLite, any libSQL/SQLite client can open it
+- **Git-friendly** — you can commit your database alongside your code (for small databases)
+- **Debuggable** — open it with `sqlite3` or any SQLite GUI to inspect internals
+
+<Warning>
+  The internal tables (prefixed with `_`) are managed by poopabase. You can read them directly with SQL, but don't modify them by hand unless you enjoy debugging.
+</Warning>

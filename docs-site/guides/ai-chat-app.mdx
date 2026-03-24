@@ -1,0 +1,389 @@
+---
+title: "Build an AI Chat App"
+description: "Build a chat app with document search and agent memory using poopabase"
+---
+
+# Build an AI Chat App
+
+In this guide you will build a chat application that uses poopabase for everything: conversation history (SQL), document search (FTS5), and agent memory. The entire backend is a single `.poop.db` file.
+
+The finished app lets users upload documents, ask questions about them, and the AI remembers context across conversations.
+
+<Note>
+  The full source code for this example is in the poopabase repo at [`examples/ai-chat/`](https://github.com/poopabase/poopabase/tree/main/examples/ai-chat).
+</Note>
+
+## Prerequisites
+
+- Node.js 18+
+- poopabase CLI installed (`npm install -g @poopabase/cli`)
+- An OpenAI API key (optional -- the app works without one, just without LLM responses)
+
+<Steps>
+
+### Create the database
+
+Initialize a new poopabase database for the chat app:
+
+```bash
+poop init chat
+```
+
+This creates `chat.poop.db` -- a single file that will hold your tables, search indexes, and memories.
+
+### Set up tables
+
+Create the SQL tables for conversations and messages. This is plain SQL, just like you would use with Postgres or any other relational database.
+
+```typescript
+import { createClient } from "@libsql/client";
+
+const db = createClient({ url: "file:chat.poop.db" });
+
+// Conversations table
+await db.execute(`
+  CREATE TABLE IF NOT EXISTS conversations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  )
+`);
+
+// Messages table
+await db.execute(`
+  CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id INTEGER REFERENCES conversations(id),
+    role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'system')),
+    content TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  )
+`);
+
+await db.execute(
+  `CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id)`
+);
+```
+
+### Add document ingestion and FTS5 search
+
+Set up tables for documents and chunks, with an FTS5 index for full-text search:
+
+```typescript
+// Documents and chunks tables
+await db.execute(`
+  CREATE TABLE IF NOT EXISTS documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source TEXT NOT NULL,
+    title TEXT,
+    type TEXT DEFAULT 'markdown',
+    content TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  )
+`);
+
+await db.execute(`
+  CREATE TABLE IF NOT EXISTS chunks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    document_id INTEGER REFERENCES documents(id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    section TEXT,
+    chunk_index INTEGER,
+    created_at TEXT DEFAULT (datetime('now'))
+  )
+`);
+
+// FTS5 full-text search index
+await db.execute(`
+  CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
+    content,
+    content=chunks,
+    content_rowid=id,
+    tokenize='porter unicode61'
+  )
+`);
+
+// Triggers to keep FTS in sync with the chunks table
+await db.execute(`
+  CREATE TRIGGER IF NOT EXISTS chunks_ai AFTER INSERT ON chunks BEGIN
+    INSERT INTO chunks_fts(rowid, content) VALUES (new.id, new.content);
+  END
+`);
+
+await db.execute(`
+  CREATE TRIGGER IF NOT EXISTS chunks_ad AFTER DELETE ON chunks BEGIN
+    INSERT INTO chunks_fts(chunks_fts, rowid, content)
+      VALUES('delete', old.id, old.content);
+  END
+`);
+```
+
+When you ingest a document, split it into chunks by heading and insert each chunk into the `chunks` table. The trigger automatically populates the FTS5 index:
+
+```typescript
+async function ingestDocument(content: string, source: string) {
+  const docResult = await db.execute({
+    sql: "INSERT INTO documents (source, title, type, content) VALUES (?, ?, 'markdown', ?)",
+    args: [source, source, content],
+  });
+  const docId = Number(docResult.lastInsertRowid);
+
+  // Structure-aware chunking: split on headings
+  const sections = content.split(/(?=^#{1,3}\s)/m);
+  let chunkIndex = 0;
+
+  for (const section of sections) {
+    const trimmed = section.trim();
+    if (!trimmed) continue;
+    const heading = trimmed.match(/^#{1,3}\s+(.+)/)?.[1] || null;
+
+    await db.execute({
+      sql: "INSERT INTO chunks (document_id, content, section, chunk_index) VALUES (?, ?, ?, ?)",
+      args: [docId, trimmed, heading, chunkIndex++],
+    });
+  }
+}
+```
+
+Searching is a single FTS5 query with BM25 ranking:
+
+```typescript
+async function searchDocs(query: string, limit = 5): Promise<string> {
+  const results = await db.execute({
+    sql: `SELECT c.content, c.section, d.source
+          FROM chunks_fts
+          JOIN chunks c ON c.id = chunks_fts.rowid
+          JOIN documents d ON d.id = c.document_id
+          WHERE chunks_fts MATCH ?
+          ORDER BY rank
+          LIMIT ?`,
+    args: [query, limit],
+  });
+
+  return results.rows
+    .map((r: any) => `[${r.source} > ${r.section}]\n${r.content}`)
+    .join("\n\n---\n\n");
+}
+```
+
+### Add memory (observations)
+
+Set up the memory tables so the agent can remember things across conversations:
+
+```typescript
+// Observations — raw facts the agent notices
+await db.execute(`
+  CREATE TABLE IF NOT EXISTS observations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    content TEXT NOT NULL,
+    source TEXT DEFAULT 'chat',
+    created_at TEXT DEFAULT (datetime('now'))
+  )
+`);
+
+await db.execute(`
+  CREATE VIRTUAL TABLE IF NOT EXISTS observations_fts USING fts5(
+    content,
+    content=observations,
+    content_rowid=id,
+    tokenize='porter unicode61'
+  )
+`);
+
+await db.execute(`
+  CREATE TRIGGER IF NOT EXISTS obs_ai AFTER INSERT ON observations BEGIN
+    INSERT INTO observations_fts(rowid, content) VALUES (new.id, new.content);
+  END
+`);
+
+// Memories — compacted, durable knowledge
+await db.execute(`
+  CREATE TABLE IF NOT EXISTS memories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    content TEXT NOT NULL,
+    type TEXT DEFAULT 'memory',
+    importance REAL DEFAULT 0.5,
+    created_at TEXT DEFAULT (datetime('now')),
+    access_count INTEGER DEFAULT 0
+  )
+`);
+
+await db.execute(`
+  CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
+    content,
+    content=memories,
+    content_rowid=id,
+    tokenize='porter unicode61'
+  )
+`);
+```
+
+Store observations whenever the user shares something meaningful, and recall them by searching with FTS5:
+
+```typescript
+async function storeObservation(content: string) {
+  await db.execute({
+    sql: "INSERT INTO observations (content) VALUES (?)",
+    args: [content],
+  });
+}
+
+async function recallMemories(query: string, limit = 3): Promise<string> {
+  const obs = await db.execute({
+    sql: `SELECT o.content FROM observations_fts
+          JOIN observations o ON o.id = observations_fts.rowid
+          WHERE observations_fts MATCH ? ORDER BY rank LIMIT ?`,
+    args: [query, limit],
+  });
+
+  const mems = await db.execute({
+    sql: `SELECT m.content FROM memories_fts
+          JOIN memories m ON m.id = memories_fts.rowid
+          WHERE memories_fts MATCH ? ORDER BY rank LIMIT ?`,
+    args: [query, limit],
+  });
+
+  return [
+    ...mems.rows.map((r: any) => `[Memory] ${r.content}`),
+    ...obs.rows.map((r: any) => `[Observation] ${r.content}`),
+  ].join("\n");
+}
+```
+
+### Wire up the LLM
+
+The chat function ties everything together: it searches documents, recalls memories, builds a system prompt with context, and calls the LLM:
+
+```typescript
+async function chat(conversationId: number, userMessage: string): Promise<string> {
+  // Save user message
+  await db.execute({
+    sql: "INSERT INTO messages (conversation_id, role, content) VALUES (?, 'user', ?)",
+    args: [conversationId, userMessage],
+  });
+
+  // Search docs and recall memories in parallel
+  const docContext = await searchDocs(userMessage);
+  const memoryContext = await recallMemories(userMessage);
+
+  // Get recent conversation history
+  const history = await db.execute({
+    sql: "SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY created_at DESC LIMIT 20",
+    args: [conversationId],
+  });
+
+  // Build system prompt with context
+  let systemPrompt = "You are a helpful AI assistant.";
+  if (docContext) systemPrompt += `\n\nRelevant documents:\n${docContext}`;
+  if (memoryContext) systemPrompt += `\n\nRelevant memories:\n${memoryContext}`;
+
+  // Call OpenAI (or any compatible API)
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...history.rows.reverse().map((r: any) => ({
+          role: r.role,
+          content: r.content,
+        })),
+      ],
+    }),
+  });
+
+  const data = await response.json() as any;
+  const assistantResponse = data.choices[0].message.content;
+
+  // Save response and store observation
+  await db.execute({
+    sql: "INSERT INTO messages (conversation_id, role, content) VALUES (?, 'assistant', ?)",
+    args: [conversationId, assistantResponse],
+  });
+
+  if (userMessage.length > 20) {
+    await storeObservation(`User asked about: ${userMessage.slice(0, 100)}`);
+  }
+
+  return assistantResponse;
+}
+```
+
+### Build the HTTP server
+
+Wrap everything in a simple HTTP server with Node's built-in `http` module:
+
+<CodeGroup>
+```bash Run the example
+# Clone the repo and navigate to the example
+cd examples/ai-chat
+
+# Install dependencies
+npm install
+
+# Set up the database (creates tables, seeds sample doc)
+npm run setup
+
+# Start the server
+npm run dev
+```
+
+```bash Try it out
+# Create a conversation and chat
+curl -X POST http://localhost:4200/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What is poopabase?"}'
+
+# Ingest a document
+curl -X POST http://localhost:4200/docs/ingest \
+  -H "Content-Type: application/json" \
+  -d '{"source": "readme.md", "content": "# My Project\n\nThis is my project docs..."}'
+
+# Search documents
+curl -X POST http://localhost:4200/docs/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "search query"}'
+
+# Check health
+curl http://localhost:4200/health
+```
+</CodeGroup>
+
+The server exposes these endpoints:
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/chat` | POST | Send a message, get an AI response |
+| `/conversations` | POST | Create a new conversation |
+| `/conversations` | GET | List all conversations |
+| `/conversations/:id` | GET | Get messages for a conversation |
+| `/docs/ingest` | POST | Upload and ingest a document |
+| `/docs/search` | POST | Search across ingested documents |
+| `/health` | GET | Health check with stats |
+
+The app also serves a chat UI at the root (`/`) -- open `http://localhost:4200` in your browser.
+
+</Steps>
+
+## One file, everything included
+
+The key takeaway: this entire application -- conversations, messages, document search, and agent memory -- lives in a single `chat.poop.db` file. There is no separate vector database, no Redis for caching, no external search service. You can copy the file, back it up, or inspect it with `poop studio`.
+
+```bash
+# See everything in one place
+poop studio --db chat.poop.db
+
+# Or query directly
+poop query --db chat.poop.db "SELECT COUNT(*) FROM messages"
+```
+
+## Next steps
+
+- Add vector search for semantic matching -- see [Hybrid Search](/features/search)
+- Set up MCP so Claude Code can use your chat app's knowledge -- see [MCP Server](/features/mcp)
+- Compact observations into durable memories -- see [Agent Memory](/guides/agent-memory)

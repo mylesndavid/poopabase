@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.poop.db
+*.poop.db-wal
+*.poop.db-shm
+.poopabase
+.env
+.DS_Store
+.next/
+package-lock.json
+.next/
+package-lock.json

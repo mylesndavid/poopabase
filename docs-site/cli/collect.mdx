@@ -1,0 +1,89 @@
+---
+title: "poop collect"
+description: "Manage schemaless document collections from the command line."
+---
+
+# poop collect
+
+Manage collections (NoSQL-style document storage). Each subcommand operates on a named collection.
+
+## Usage
+
+```bash
+poop collect <subcommand> [options]
+```
+
+## Subcommands
+
+### `insert`
+
+Insert a JSON document into a collection.
+
+```bash
+poop collect insert <collection> <json>
+```
+
+```bash
+# Insert a document
+poop collect insert users '{"name": "Alice", "role": "admin"}'
+
+# With a custom ID
+poop collect insert users '{"name": "Bob"}' --id user_002
+```
+
+### `find`
+
+Query documents in a collection.
+
+```bash
+poop collect find <collection> [filter]
+```
+
+```bash
+# All documents
+poop collect find users
+
+# With a filter
+poop collect find users '{"role": "admin"}'
+
+# With a limit
+poop collect find users --limit 5
+```
+
+### `delete`
+
+Delete a document by ID.
+
+```bash
+poop collect delete <collection> <id>
+```
+
+```bash
+poop collect delete users user_001
+```
+
+### `list`
+
+List all collections in the database.
+
+```bash
+poop collect list
+```
+
+### `drop`
+
+Drop an entire collection and all its documents.
+
+```bash
+poop collect drop <collection>
+```
+
+```bash
+poop collect drop users
+```
+
+## Global Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--db <path>` | Path to the database file | `.poop.db` |

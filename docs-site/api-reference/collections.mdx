@@ -1,0 +1,127 @@
+---
+title: "Collections API"
+description: "Schemaless document storage — insert, query, and delete JSON documents."
+---
+
+# Collections API
+
+Collections give you schemaless, NoSQL-style document storage. Each collection is backed by an auto-created SQLite table (`_col_{name}`).
+
+## Insert Document
+
+### `POST /collections/:name`
+
+Insert a document into a collection. The collection is created automatically if it doesn't exist.
+
+<ParamField body="data" type="object" required>
+  The JSON document to store.
+</ParamField>
+
+<ParamField body="id" type="string">
+  Optional document ID. Auto-generated if not provided.
+</ParamField>
+
+```bash curl
+curl -X POST http://localhost:3141/collections/users \
+  -H "Content-Type: application/json" \
+  -d '{
+    "data": {
+      "name": "Alice",
+      "role": "admin",
+      "email": "alice@example.com"
+    },
+    "id": "user_001"
+  }'
+```
+
+### Response
+
+```json
+{
+  "id": "user_001"
+}
+```
+
+---
+
+## Find Documents
+
+### `GET /collections/:name`
+
+Query documents in a collection with optional filters.
+
+<ParamField query="filter" type="string">
+  JSON-encoded filter object. Matches documents where all specified fields match. Example: `{"role":"admin"}`.
+</ParamField>
+
+<ParamField query="limit" type="number">
+  Maximum number of documents to return. Defaults to `20`.
+</ParamField>
+
+```bash curl
+# All documents
+curl http://localhost:3141/collections/users
+
+# With filter
+curl "http://localhost:3141/collections/users?filter=%7B%22role%22%3A%22admin%22%7D&limit=10"
+
+# Readable version of the filter:
+# ?filter={"role":"admin"}&limit=10
+```
+
+### Response
+
+```json
+{
+  "documents": [
+    {
+      "id": "user_001",
+      "data": {
+        "name": "Alice",
+        "role": "admin",
+        "email": "alice@example.com"
+      }
+    }
+  ]
+}
+```
+
+---
+
+## Delete Document
+
+### `DELETE /collections/:name/:id`
+
+Delete a single document by ID.
+
+```bash curl
+curl -X DELETE http://localhost:3141/collections/users/user_001
+```
+
+### Response
+
+```json
+{
+  "deleted": true
+}
+```
+
+---
+
+## List Collections
+
+### `GET /collections`
+
+List all collections in the database.
+
+```bash curl
+curl http://localhost:3141/collections
+```
+
+### Response
+
+```json
+{
+  "collections": ["users", "products", "logs"]
+}
+```

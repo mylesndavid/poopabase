@@ -1,0 +1,50 @@
+---
+title: "CLI Overview"
+description: "Install and use the poop CLI to manage your poopabase database."
+---
+
+# CLI Overview
+
+The `poop` CLI is the primary way to interact with poopabase from your terminal.
+
+## Installation
+
+```bash
+npm install -g @poopabase/cli
+```
+
+## Global Options
+
+| Option | Description |
+|--------|-------------|
+| `--db <path>` | Path to the database file. Defaults to `.poop.db` in the current directory. |
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| [`poop init`](/cli/init) | Create a new poopabase database |
+| [`poop serve`](/cli/serve) | Start the HTTP API server |
+| [`poop ingest`](/cli/ingest) | Ingest files into the document store |
+| [`poop search`](/cli/search) | Search ingested documents |
+| [`poop collect`](/cli/collect) | Manage collections (NoSQL) |
+| [`poop observe`](/cli/memory) | Store an observation in memory |
+| [`poop recall`](/cli/memory) | Recall memories |
+| [`poop compact`](/cli/memory) | Compact observations into memories |
+| [`poop studio`](/cli/studio) | Open Outerbase Studio for the database |
+
+## Quick example
+
+```bash
+# Create a database
+poop init my-project
+
+# Ingest some docs
+poop ingest ./docs
+
+# Search them
+poop search "authentication"
+
+# Start the API server
+poop serve --port 3141
+```

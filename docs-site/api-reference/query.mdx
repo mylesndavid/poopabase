@@ -1,0 +1,112 @@
+---
+title: "Execute SQL"
+description: "Run arbitrary SQL queries against your poopabase database."
+---
+
+# Execute SQL
+
+Run any SQL query — `SELECT`, `INSERT`, `CREATE TABLE`, whatever you need.
+
+## `POST /query`
+
+<ParamField body="sql" type="string" required>
+  The SQL query to execute.
+</ParamField>
+
+<ParamField body="args" type="array">
+  Positional arguments for parameterized queries. Defaults to `[]`.
+</ParamField>
+
+### Response
+
+<ResponseField name="columns" type="array">
+  Column names from the result set.
+</ResponseField>
+
+<ResponseField name="rows" type="array">
+  Array of result rows. Each row is an array of values.
+</ResponseField>
+
+<ResponseField name="rowsAffected" type="number">
+  Number of rows affected by the query (for `INSERT`, `UPDATE`, `DELETE`).
+</ResponseField>
+
+### Examples
+
+<CodeGroup>
+
+```bash curl
+curl -X POST http://localhost:3141/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sql": "SELECT * FROM users WHERE role = ?",
+    "args": ["admin"]
+  }'
+```
+
+```typescript TypeScript
+const res = await fetch("http://localhost:3141/query", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    sql: "SELECT * FROM users WHERE role = ?",
+    args: ["admin"],
+  }),
+});
+const data = await res.json();
+// { columns: ["id", "name", "role"], rows: [...], rowsAffected: 0 }
+```
+
+```python Python
+import requests
+
+res = requests.post("http://localhost:3141/query", json={
+    "sql": "SELECT * FROM users WHERE role = ?",
+    "args": ["admin"]
+})
+data = res.json()
+# {"columns": ["id", "name", "role"], "rows": [...], "rowsAffected": 0}
+```
+
+</CodeGroup>
+
+### Response example
+
+```json
+{
+  "columns": ["id", "name", "role"],
+  "rows": [
+    [1, "Alice", "admin"],
+    [2, "Bob", "admin"]
+  ],
+  "rowsAffected": 0
+}
+```
+
+## Hrana v3 Protocol
+
+### `POST /v3/pipeline`
+
+For compatibility with `@libsql/client` SDKs, poopabase also supports the Hrana v3 protocol. You don't need to call this endpoint directly — just point the SDK at your server:
+
+<CodeGroup>
+
+```typescript @libsql/client
+import { createClient } from "@libsql/client";
+
+const client = createClient({
+  url: "http://localhost:3141",
+});
+
+// Execute queries using the standard SDK
+const result = await client.execute("SELECT * FROM users");
+console.log(result.rows);
+
+// Parameterized queries
+const admins = await client.execute({
+  sql: "SELECT * FROM users WHERE role = ?",
+  args: ["admin"],
+});
+```
+
+</CodeGroup>

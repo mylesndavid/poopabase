@@ -1,0 +1,40 @@
+---
+title: "poop search"
+description: "Search ingested documents from the command line."
+---
+
+# poop search
+
+Full-text search across all ingested documents. Uses FTS5 with BM25 ranking.
+
+## Usage
+
+```bash
+poop search <query> [options]
+```
+
+## Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `query` | The search query string. |
+
+## Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--limit <number>` | Maximum number of results | `10` |
+| `--db <path>` | Path to the database file | `.poop.db` |
+
+## Examples
+
+```bash
+# Basic search
+poop search "authentication"
+
+# Limit results
+poop search "error handling" --limit 5
+
+# Search a specific database
+poop search "deployment" --db ./data/myapp.poop.db
+```

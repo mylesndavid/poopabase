@@ -1,0 +1,44 @@
+---
+title: "poop ingest"
+description: "Ingest files into the poopabase document store for full-text search."
+---
+
+# poop ingest
+
+Ingest files into the document store. Supports individual files, directories, and glob patterns. Ingested content is chunked and indexed for full-text search.
+
+## Usage
+
+```bash
+poop ingest <path> [options]
+```
+
+## Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `path` | File path, directory, or glob pattern to ingest. |
+
+## Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--db <path>` | Path to the database file | `.poop.db` |
+
+## Examples
+
+```bash
+# Ingest a single file
+poop ingest ./README.md
+
+# Ingest a directory (recursively)
+poop ingest ./docs
+
+# Ingest with a glob pattern
+poop ingest "./src/**/*.md"
+
+# Ingest into a specific database
+poop ingest ./docs --db ./data/myapp.poop.db
+```
+
+Ingested documents are immediately searchable via [`poop search`](/cli/search) or the [Search API](/api-reference/search).

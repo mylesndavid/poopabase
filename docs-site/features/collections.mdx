@@ -1,0 +1,234 @@
+---
+title: "Collections (NoSQL)"
+description: "Schemaless document storage — like MongoDB, but it's just SQL underneath."
+---
+
+# Collections (NoSQL)
+
+Collections give you schemaless document storage. No migrations, no `CREATE TABLE`, no type definitions. Just throw JSON in and query it later.
+
+If you've used MongoDB or Firestore, this will feel familiar. The difference: it's all SQL under the hood, so you can join collections with regular tables when you need to.
+
+## Quick example
+
+```bash
+# Insert documents
+poop collect insert users '{"name": "Myles", "role": "admin", "level": 99}'
+poop collect insert users '{"name": "Claude", "role": "agent", "model": "opus"}'
+poop collect insert users '{"name": "Bot", "role": "agent", "model": "sonnet"}'
+
+# Find all agents
+poop collect find users --filter '{"role": "agent"}'
+
+# Delete one
+poop collect delete users --filter '{"name": "Bot"}'
+```
+
+## How it works under the hood
+
+When you insert into a collection called `users`, poopabase creates (if it doesn't exist):
+
+```sql
+CREATE TABLE IF NOT EXISTS _collection_users (
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+  data JSON NOT NULL,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+```
+
+Each document is stored as a JSON blob in the `data` column. Queries use SQLite's `->>` operator to reach into the JSON:
+
+```sql
+-- What `poop collect find users --filter '{"role": "agent"}'` actually runs:
+SELECT id, data, created_at
+FROM _collection_users
+WHERE data->>'role' = 'agent';
+```
+
+## Inserting documents
+
+<Tabs>
+  <Tab title="CLI">
+    ```bash
+    # Single document
+    poop collect insert products '{"name": "Widget", "price": 29.99, "tags": ["new", "sale"]}'
+
+    # From a file
+    poop collect insert products --file ./data/product.json
+
+    # Batch insert from JSONL
+    poop collect insert products --file ./data/products.jsonl
+    ```
+  </Tab>
+
+  <Tab title="HTTP API">
+    ```bash
+    curl -X POST http://localhost:3141/collections/products \
+      -H "Content-Type: application/json" \
+      -d '{"data": {"name": "Widget", "price": 29.99, "tags": ["new", "sale"]}}'
+    ```
+
+    ```typescript
+    const res = await fetch("http://localhost:3141/collections/products", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        data: { name: "Widget", price: 29.99, tags: ["new", "sale"] },
+      }),
+    });
+    const { id } = await res.json();
+    ```
+  </Tab>
+
+  <Tab title="MCP">
+    An agent using the `poopabase_collection_insert` tool:
+
+    ```
+    Agent: I'll save that product info for you.
+    → poopabase_collection_insert: {
+        "collection": "products",
+        "document": {"name": "Widget", "price": 29.99, "tags": ["new", "sale"]}
+      }
+    → Result: {"id": "a1b2c3d4e5f6..."}
+    ```
+  </Tab>
+</Tabs>
+
+## Querying documents
+
+<Tabs>
+  <Tab title="CLI">
+    ```bash
+    # Find all documents
+    poop collect find products
+
+    # Filter by field
+    poop collect find products --filter '{"price": 29.99}'
+
+    # Filter with operators (coming soon)
+    poop collect find products --filter '{"price": {"$gt": 20}}'
+
+    # Limit results
+    poop collect find products --limit 10
+    ```
+  </Tab>
+
+  <Tab title="HTTP API">
+    ```bash
+    # Find all
+    curl http://localhost:3141/collections/products
+
+    # Filter
+    curl -X POST http://localhost:3141/collections/products/find \
+      -H "Content-Type: application/json" \
+      -d '{"filter": {"price": 29.99}}'
+    ```
+  </Tab>
+
+  <Tab title="MCP">
+    ```
+    Agent: Let me look up the products on sale.
+    → poopabase_collection_find: {
+        "collection": "products",
+        "filter": {"tags": "sale"}
+      }
+    → Result: [{"id": "a1b2...", "data": {"name": "Widget", ...}}]
+    ```
+  </Tab>
+</Tabs>
+
+## Deleting documents
+
+<Tabs>
+  <Tab title="CLI">
+    ```bash
+    # Delete by filter
+    poop collect delete products --filter '{"name": "Widget"}'
+
+    # Delete by ID
+    poop collect delete products --id a1b2c3d4e5f6
+    ```
+  </Tab>
+
+  <Tab title="HTTP API">
+    ```bash
+    # Delete by ID
+    curl -X DELETE http://localhost:3141/collections/products/a1b2c3d4e5f6
+
+    # Delete by filter
+    curl -X POST http://localhost:3141/collections/products/delete \
+      -H "Content-Type: application/json" \
+      -d '{"filter": {"name": "Widget"}}'
+    ```
+  </Tab>
+
+  <Tab title="MCP">
+    ```
+    Agent: I'll remove that old product entry.
+    → poopabase_collection_delete: {
+        "collection": "products",
+        "filter": {"name": "Widget"}
+      }
+    → Result: {"deleted": 1}
+    ```
+  </Tab>
+</Tabs>
+
+## Querying with raw SQL
+
+Since collections are just tables, you can query them directly with SQL for advanced use cases:
+
+```sql
+-- Full-text JSON query
+SELECT
+  id,
+  data->>'name' AS name,
+  data->>'price' AS price
+FROM _collection_products
+WHERE CAST(data->>'price' AS REAL) > 20.0
+ORDER BY CAST(data->>'price' AS REAL) DESC;
+
+-- Join a collection with a regular table
+SELECT
+  p.data->>'name' AS product,
+  o.quantity,
+  o.created_at
+FROM _collection_products p
+JOIN orders o ON o.product_id = p.id;
+
+-- Aggregate across collection documents
+SELECT
+  data->>'category' AS category,
+  COUNT(*) AS count,
+  AVG(CAST(data->>'price' AS REAL)) AS avg_price
+FROM _collection_products
+GROUP BY data->>'category';
+
+-- Query into nested arrays with json_each
+SELECT id, data->>'name' AS name
+FROM _collection_products, json_each(data->'tags')
+WHERE json_each.value = 'sale';
+```
+
+<Info>
+  The `->>` operator extracts a JSON value as **text**. If you need the raw JSON type (for nested objects), use `->` instead. When comparing numbers, wrap with `CAST(... AS REAL)` or `CAST(... AS INTEGER)`.
+</Info>
+
+## Compared to MongoDB
+
+| Feature | MongoDB | poopabase Collections |
+|---------|---------|----------------------|
+| Insert documents | `db.users.insertOne({...})` | `poop collect insert users '{...}'` |
+| Query documents | `db.users.find({role: "admin"})` | `poop collect find users --filter '{"role": "admin"}'` |
+| Schema | Schemaless | Schemaless |
+| Query language | MongoDB Query Language | SQL with JSON operators |
+| Storage | BSON in WiredTiger | JSON in SQLite |
+| Joins | `$lookup` (awkward) | Standard SQL `JOIN` (natural) |
+| Hosting | Atlas / self-hosted server | Single file, no server |
+| Transactions | Multi-document ACID | SQLite transactions (ACID) |
+
+The tradeoff: MongoDB has more advanced query operators and scales horizontally. poopabase collections are simpler, local-first, and you can escape to full SQL whenever you need to.
+
+<Note>
+  Collections are great for prototyping and agent workloads. If your data has a well-known schema, consider using regular SQL tables — you'll get better performance from proper indexes.
+</Note>

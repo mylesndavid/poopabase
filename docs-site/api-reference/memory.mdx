@@ -1,0 +1,186 @@
+---
+title: "Memory API"
+description: "Agent memory — observe facts, compact them, and recall them later."
+---
+
+# Memory API
+
+The memory system lets agents store observations, compact them into durable memories, and recall them later. Think of it as long-term memory for your agent.
+
+## Observe
+
+### `POST /memory/observe`
+
+Store a new observation. Observations are raw facts or notes your agent wants to remember.
+
+<ParamField body="content" type="string" required>
+  The observation text to store.
+</ParamField>
+
+### Examples
+
+<CodeGroup>
+
+```bash curl
+curl -X POST http://localhost:3141/memory/observe \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "User prefers dark mode and uses TypeScript"
+  }'
+```
+
+```typescript TypeScript
+await fetch("http://localhost:3141/memory/observe", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    content: "User prefers dark mode and uses TypeScript",
+  }),
+});
+```
+
+```python Python
+import requests
+
+requests.post("http://localhost:3141/memory/observe", json={
+    "content": "User prefers dark mode and uses TypeScript"
+})
+```
+
+</CodeGroup>
+
+### Response
+
+```json
+{
+  "id": "obs_a1b2c3"
+}
+```
+
+---
+
+## Recall
+
+### `POST /memory/recall`
+
+Search through observations and compacted memories.
+
+<ParamField body="query" type="string" required>
+  The search term to recall memories for.
+</ParamField>
+
+<ParamField body="limit" type="number">
+  Maximum number of results. Defaults to `5`.
+</ParamField>
+
+### Examples
+
+<CodeGroup>
+
+```bash curl
+curl -X POST http://localhost:3141/memory/recall \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "user preferences",
+    "limit": 5
+  }'
+```
+
+```typescript TypeScript
+const res = await fetch("http://localhost:3141/memory/recall", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    query: "user preferences",
+    limit: 5,
+  }),
+});
+const { memories } = await res.json();
+```
+
+```python Python
+import requests
+
+res = requests.post("http://localhost:3141/memory/recall", json={
+    "query": "user preferences",
+    "limit": 5
+})
+memories = res.json()["memories"]
+```
+
+</CodeGroup>
+
+### Response
+
+```json
+{
+  "memories": [
+    {
+      "id": "obs_a1b2c3",
+      "content": "User prefers dark mode and uses TypeScript",
+      "type": "observation",
+      "score": -3.45
+    }
+  ]
+}
+```
+
+---
+
+## Compact
+
+### `POST /memory/compact`
+
+Compact observations into durable, summarized memories. This consolidates related observations into higher-quality memories. No request body needed.
+
+```bash curl
+curl -X POST http://localhost:3141/memory/compact
+```
+
+### Response
+
+```json
+{
+  "compacted": 12,
+  "memories": 3
+}
+```
+
+---
+
+## Status
+
+### `GET /status`
+
+Get counts of all stored data in the database.
+
+```bash curl
+curl http://localhost:3141/status
+```
+
+### Response
+
+<ResponseField name="docs" type="number">
+  Number of ingested documents.
+</ResponseField>
+
+<ResponseField name="chunks" type="number">
+  Number of document chunks in the search index.
+</ResponseField>
+
+<ResponseField name="observations" type="number">
+  Number of stored observations.
+</ResponseField>
+
+<ResponseField name="memories" type="number">
+  Number of compacted memories.
+</ResponseField>
+
+```json
+{
+  "docs": 24,
+  "chunks": 156,
+  "observations": 42,
+  "memories": 8
+}
+```

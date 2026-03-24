@@ -1,0 +1,58 @@
+---
+title: "Memory Commands"
+description: "Store, recall, and compact agent memories from the command line."
+---
+
+# Memory Commands
+
+Manage agent memory — store observations, recall them later, and compact them into durable memories.
+
+## poop observe
+
+Store a new observation.
+
+```bash
+poop observe <text>
+```
+
+```bash
+poop observe "User prefers dark mode and uses TypeScript"
+poop observe "Project uses Next.js 14 with App Router"
+```
+
+## poop recall
+
+Search through observations and compacted memories.
+
+```bash
+poop recall <query> [options]
+```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--limit <number>` | Maximum number of results | `5` |
+| `--db <path>` | Path to the database file | `.poop.db` |
+
+```bash
+# Recall memories about a topic
+poop recall "user preferences"
+
+# Limit results
+poop recall "tech stack" --limit 3
+```
+
+## poop compact
+
+Compact observations into durable, summarized memories. This consolidates related observations into higher-quality memories.
+
+```bash
+poop compact
+```
+
+```bash
+# Compact memories in the default database
+poop compact
+
+# Compact a specific database
+poop compact --db ./data/myapp.poop.db
+```

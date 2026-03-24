@@ -1,0 +1,48 @@
+---
+title: "poop serve"
+description: "Start the poopabase HTTP API server."
+---
+
+# poop serve
+
+Start the HTTP API server. Exposes all poopabase features over REST endpoints and the Hrana v3 protocol.
+
+## Usage
+
+```bash
+poop serve [options]
+```
+
+## Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--port <number>` | Port to listen on | `3141` |
+| `--db <path>` | Path to the database file | `.poop.db` |
+| `--url <url>` | Connect to a remote libSQL database URL | — |
+| `--token <string>` | Authentication token for the API | — |
+| `--mcp` | Also start the MCP server | `false` |
+
+## Examples
+
+```bash
+# Start with defaults (port 3141)
+poop serve
+
+# Custom port
+poop serve --port 8080
+
+# With authentication
+poop serve --token my-secret-token
+
+# Specific database file
+poop serve --db ./data/myapp.poop.db
+
+# Connect to a remote libSQL database
+poop serve --url libsql://my-db.turso.io --token <turso-token>
+
+# Start with MCP server enabled
+poop serve --mcp
+```
+
+Once running, the API is available at `http://localhost:3141` (or your configured port). See the [API Reference](/api-reference/overview) for all available endpoints.

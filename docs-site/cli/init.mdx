@@ -1,0 +1,39 @@
+---
+title: "poop init"
+description: "Create a new poopabase database and initialize the schema."
+---
+
+# poop init
+
+Create a new poopabase database, set up the schema, and create a `.poopabase` config directory.
+
+## Usage
+
+```bash
+poop init [name]
+```
+
+## Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `name` | Optional project name. Defaults to the current directory name. |
+
+## What it does
+
+1. Creates a `.poop.db` database file
+2. Sets up the internal schema (FTS5 indexes, memory tables, etc.)
+3. Creates a `.poopabase/` config directory
+
+## Examples
+
+```bash
+# Initialize in current directory
+poop init
+
+# Initialize with a project name
+poop init my-agent
+
+# Initialize with a custom database path
+poop init --db ./data/agent.poop.db
+```

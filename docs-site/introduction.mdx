@@ -1,0 +1,90 @@
+---
+title: "Introduction"
+description: "poopabase is the database for agents — SQL, documents, search, collections, and memory in a single file."
+---
+
+# The database for agents
+
+Agents don't fit neatly into one database paradigm. They need SQL for structured data, document search for knowledge, vector search for semantics, NoSQL for flexibility, and memory to remember things across conversations.
+
+poopabase gives you all five in a single file.
+
+```
+┌─────────────────────────────────────────────┐
+│                 poopabase                    │
+│                                              │
+│  ┌─────────┐ ┌────────────┐ ┌────────────┐  │
+│  │   SQL   │ │ Collections│ │ Documents  │  │
+│  │  tables │ │   (NoSQL)  │ │   (FTS5)   │  │
+│  └─────────┘ └────────────┘ └────────────┘  │
+│  ┌─────────────────┐ ┌──────────────────┐   │
+│  │  Hybrid Search  │ │  Agent Memory    │   │
+│  │ BM25 + Vectors  │ │ observe → recall │   │
+│  └─────────────────┘ └──────────────────┘   │
+│                                              │
+│            ┌──────────────┐                  │
+│            │  libSQL/SQLite│                  │
+│            │  .poop.db    │                  │
+│            └──────────────┘                  │
+└─────────────────────────────────────────────┘
+         ▲         ▲         ▲
+         │         │         │
+      CLI (poop)  HTTP API  MCP Server
+```
+
+## Five modes, one database
+
+<CardGroup cols={2}>
+  <Card title="SQL Database" icon="database" href="/features/sql">
+    Full relational SQL. Tables, joins, indexes, triggers — everything you'd expect. Built on libSQL, a battle-tested SQLite fork.
+  </Card>
+  <Card title="Collections (NoSQL)" icon="layer-group" href="/features/collections">
+    Schemaless document storage. Throw JSON in, query it out. Like MongoDB, but it's just SQL underneath.
+  </Card>
+  <Card title="Document Search" icon="file-lines" href="/features/documents">
+    Ingest markdown, text, and code files. Structure-aware chunking with FTS5 full-text search and BM25 ranking.
+  </Card>
+  <Card title="Hybrid Search" icon="magnifying-glass" href="/features/search">
+    Keyword search via FTS5. Vector search via libSQL's F32_BLOB. Combine them with Reciprocal Rank Fusion.
+  </Card>
+  <Card title="Agent Memory" icon="brain" href="/features/memory">
+    Observe facts, compact them into durable memories, recall them later. Your agent remembers things across conversations.
+  </Card>
+</CardGroup>
+
+## Why poopabase exists
+
+Most agents today cobble together 3-4 different services: a database, a vector store, a document index, and some kind of memory layer. That's a lot of infra for a thing that just needs to remember what you told it.
+
+poopabase collapses all of that into a single `.poop.db` file powered by [libSQL](https://github.com/tursodatabase/libsql) (the SQLite fork from Turso). No servers to manage. No docker compose files with six services. One file, one process.
+
+**It works three ways:**
+
+- **`poop` CLI** — manage everything from your terminal
+- **HTTP API** — `poop serve` starts a REST server on port 3141
+- **MCP Server** — plug directly into Claude Code, Cursor, Windsurf, or any MCP-compatible agent
+
+## Built on libSQL
+
+Under the hood, poopabase is libSQL — which means it's SQLite with extras:
+
+- **FTS5** for full-text search with BM25 ranking
+- **F32_BLOB** for native vector storage and cosine similarity
+- **JSON operators** (`->>`) for querying nested documents
+- **WAL mode** for concurrent reads
+- Everything lives in a single file you can `cp`, `scp`, or commit to git
+
+<Note>
+  poopabase is not a hosted service. It's a local-first database that runs wherever your agent runs. Think SQLite, not Postgres.
+</Note>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Install the CLI and create your first database in 60 seconds.
+  </Card>
+  <Card title="Core Concepts" icon="lightbulb" href="/concepts">
+    Understand the five modes and how they fit together.
+  </Card>
+</CardGroup>

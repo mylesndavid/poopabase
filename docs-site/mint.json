@@ -1,0 +1,107 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "poopabase",
+  "logo": {
+    "dark": "/logo/dark.svg",
+    "light": "/logo/light.svg"
+  },
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#22c55e",
+    "light": "#4ade80",
+    "dark": "#16a34a",
+    "anchors": {
+      "from": "#22c55e",
+      "to": "#16a34a"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "GitHub",
+      "url": "https://github.com/poopabase/poopabase"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Get Started",
+    "url": "/quickstart"
+  },
+  "tabs": [
+    {
+      "name": "API Reference",
+      "url": "api-reference"
+    },
+    {
+      "name": "CLI",
+      "url": "cli"
+    }
+  ],
+  "anchors": [
+    {
+      "name": "GitHub",
+      "icon": "github",
+      "url": "https://github.com/poopabase/poopabase"
+    },
+    {
+      "name": "Discord",
+      "icon": "discord",
+      "url": "https://discord.gg/poopabase"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Getting Started",
+      "pages": [
+        "introduction",
+        "quickstart",
+        "concepts"
+      ]
+    },
+    {
+      "group": "Features",
+      "pages": [
+        "features/sql",
+        "features/collections",
+        "features/documents",
+        "features/search",
+        "features/memory",
+        "features/mcp"
+      ]
+    },
+    {
+      "group": "Guides",
+      "pages": [
+        "guides/ai-chat-app",
+        "guides/knowledge-base",
+        "guides/agent-memory"
+      ]
+    },
+    {
+      "group": "API Reference",
+      "pages": [
+        "api-reference/overview",
+        "api-reference/query",
+        "api-reference/search",
+        "api-reference/collections",
+        "api-reference/documents",
+        "api-reference/memory"
+      ]
+    },
+    {
+      "group": "CLI Reference",
+      "pages": [
+        "cli/overview",
+        "cli/init",
+        "cli/serve",
+        "cli/ingest",
+        "cli/search",
+        "cli/collect",
+        "cli/memory",
+        "cli/studio"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/poopabase/poopabase",
+    "x": "https://x.com/poopabase"
+  }
+}

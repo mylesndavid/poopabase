@@ -1,0 +1,19 @@
+{
+  "name": "poopabase-ai-chat",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "setup": "tsx src/setup.ts"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.14.0",
+    "openai": "^4.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.5.0"
+  }
+}

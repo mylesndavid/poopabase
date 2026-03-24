@@ -1,0 +1,200 @@
+---
+title: "Quickstart"
+description: "Install poopabase and create your first database in 60 seconds."
+---
+
+# Quickstart
+
+Go from zero to a fully-functional agent database in about a minute.
+
+## Install the CLI
+
+<CodeGroup>
+```bash npm
+npm install -g @poopabase/cli
+```
+
+```bash pnpm
+pnpm add -g @poopabase/cli
+```
+
+```bash brew
+brew install poopabase/tap/poop
+```
+</CodeGroup>
+
+Verify it's working:
+
+```bash
+poop --version
+```
+
+## Create a database
+
+<Steps>
+  <Step title="Initialize a new project">
+    ```bash
+    poop init myproject
+    ```
+
+    This creates `myproject.poop.db` — a single file containing your entire database.
+  </Step>
+
+  <Step title="Try SQL mode">
+    Drop into an interactive SQL shell:
+
+    ```bash
+    poop shell
+    ```
+
+    ```sql
+    CREATE TABLE tasks (
+      id INTEGER PRIMARY KEY,
+      title TEXT NOT NULL,
+      done BOOLEAN DEFAULT FALSE
+    );
+
+    INSERT INTO tasks (title) VALUES ('Build something cool');
+    INSERT INTO tasks (title) VALUES ('Ship it');
+
+    SELECT * FROM tasks WHERE done = FALSE;
+    ```
+  </Step>
+
+  <Step title="Try Collections (NoSQL)">
+    No schema needed — just throw JSON in:
+
+    ```bash
+    poop collect insert users '{"name": "Myles", "role": "builder", "vibes": "immaculate"}'
+    poop collect insert users '{"name": "Agent", "role": "assistant", "model": "claude-4"}'
+    poop collect find users --filter '{"role": "builder"}'
+    ```
+  </Step>
+
+  <Step title="Try Document Search">
+    Ingest a folder of docs, then search them:
+
+    ```bash
+    poop ingest ./docs/
+    poop search "authentication"
+    ```
+
+    poopabase chunks your documents intelligently (splitting on headers and paragraphs), indexes them with FTS5, and returns results ranked by BM25.
+  </Step>
+
+  <Step title="Try Agent Memory">
+    Teach poopabase something, then recall it:
+
+    ```bash
+    poop observe "user prefers dark mode"
+    poop observe "user's name is Myles"
+    poop observe "user is building an agent framework"
+    poop recall "preferences"
+    ```
+
+    Memories are stored as observations, then compacted into durable memories over time.
+  </Step>
+</Steps>
+
+## Start the HTTP server
+
+```bash
+poop serve
+```
+
+This starts the poopabase API on `http://localhost:3141`. You can now hit it from any language:
+
+<CodeGroup>
+```typescript TypeScript
+const res = await fetch("http://localhost:3141/query", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ sql: "SELECT * FROM tasks" }),
+});
+const data = await res.json();
+```
+
+```python Python
+import requests
+
+res = requests.post("http://localhost:3141/query", json={
+    "sql": "SELECT * FROM tasks"
+})
+data = res.json()
+```
+
+```bash curl
+curl -X POST http://localhost:3141/query \
+  -H "Content-Type: application/json" \
+  -d '{"sql": "SELECT * FROM tasks"}'
+```
+</CodeGroup>
+
+## Open the Studio
+
+```bash
+poop studio
+```
+
+This opens the poopabase web dashboard where you can browse tables, run queries, search documents, and view memories — all from your browser.
+
+## Connect to AI agents via MCP
+
+The real power of poopabase is as a backend for AI agents. Set it up as an MCP server so agents can query, search, and remember things directly.
+
+<Tabs>
+  <Tab title="Claude Code">
+    ```bash
+    claude mcp add poopabase -- npx @poopabase/mcp --db ./myproject.poop.db
+    ```
+
+    That's it. Claude Code can now use all 10 poopabase tools — query SQL, search documents, manage collections, and use agent memory.
+  </Tab>
+
+  <Tab title="Cursor">
+    Add to your `.cursor/mcp.json`:
+
+    ```json
+    {
+      "mcpServers": {
+        "poopabase": {
+          "command": "npx",
+          "args": ["@poopabase/mcp", "--db", "./myproject.poop.db"]
+        }
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="Windsurf">
+    Add to your `~/.windsurf/mcp.json`:
+
+    ```json
+    {
+      "mcpServers": {
+        "poopabase": {
+          "command": "npx",
+          "args": ["@poopabase/mcp", "--db", "./myproject.poop.db"]
+        }
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## What's next?
+
+<CardGroup cols={2}>
+  <Card title="Core Concepts" icon="lightbulb" href="/concepts">
+    Understand how the five modes work together.
+  </Card>
+  <Card title="SQL Database" icon="database" href="/features/sql">
+    Deep dive into SQL mode.
+  </Card>
+  <Card title="Agent Memory" icon="brain" href="/features/memory">
+    Learn how observe → compact → recall works.
+  </Card>
+  <Card title="MCP Server" icon="robot" href="/features/mcp">
+    Full guide to the MCP integration.
+  </Card>
+</CardGroup>

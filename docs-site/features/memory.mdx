@@ -1,0 +1,295 @@
+---
+title: "Agent Memory"
+description: "Give your agents persistent memory with the observe → compact → recall lifecycle."
+---
+
+# Agent Memory
+
+Agents forget everything between conversations. poopabase fixes that.
+
+Agent Memory lets you store observations, compact them into durable memories, and recall them later. Your agent can remember user preferences, project context, past decisions — anything worth keeping.
+
+## The lifecycle
+
+```
+observe → compact → recall
+```
+
+1. **Observe** — agent notices something worth remembering
+2. **Compact** — similar observations get merged into durable memories
+3. **Recall** — agent retrieves relevant memories for a new conversation
+
+That's the whole system.
+
+## Observe
+
+Observations are raw notes. Facts, preferences, decisions, context — anything an agent thinks is worth recording.
+
+<Tabs>
+  <Tab title="CLI">
+    ```bash
+    poop observe "user's name is Myles"
+    poop observe "user prefers TypeScript over Python"
+    poop observe "project uses Cloudflare Workers for deployment"
+    poop observe "user asked to avoid using classes, prefers functions"
+    poop observe "the database schema was redesigned on March 15th"
+    ```
+  </Tab>
+
+  <Tab title="HTTP API">
+    ```bash
+    curl -X POST http://localhost:3141/memory/observe \
+      -H "Content-Type: application/json" \
+      -d '{"content": "user prefers TypeScript over Python"}'
+    ```
+
+    ```typescript
+    await fetch("http://localhost:3141/memory/observe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        content: "user prefers TypeScript over Python",
+        tags: ["preferences", "languages"],
+      }),
+    });
+    ```
+  </Tab>
+
+  <Tab title="MCP">
+    ```
+    User: Actually, let's use Hono instead of Express for this.
+    Agent: Got it, switching to Hono.
+    → poopabase_observe: {"content": "user prefers Hono over Express for HTTP servers"}
+    ```
+
+    Agents should observe silently — the user doesn't need to know every time something gets recorded.
+  </Tab>
+</Tabs>
+
+Each observation is stored with a timestamp, optional tags, and a source identifier:
+
+```sql
+-- What the _observations table looks like
+CREATE TABLE _observations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  content TEXT NOT NULL,
+  tags JSON,
+  source TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+```
+
+### What to observe
+
+Good observations are **specific and atomic**:
+
+| Good | Bad |
+|------|-----|
+| "user's name is Myles" | "had a conversation with the user" |
+| "project uses PostgreSQL 16" | "discussed database stuff" |
+| "user wants error messages in English only" | "user has preferences about errors" |
+| "auth tokens expire after 24 hours" | "talked about auth" |
+
+## Compact
+
+Over time, observations pile up. Compaction groups related ones into durable, summarized memories.
+
+<Tabs>
+  <Tab title="CLI">
+    ```bash
+    poop compact
+    ```
+  </Tab>
+
+  <Tab title="HTTP API">
+    ```bash
+    curl -X POST http://localhost:3141/memory/compact
+    ```
+  </Tab>
+
+  <Tab title="MCP">
+    ```
+    → poopabase_compact: {}
+    → Result: {"compacted": 12, "memories_created": 4, "memories_updated": 2}
+    ```
+  </Tab>
+</Tabs>
+
+### How compaction works
+
+Compaction looks at unprocessed observations and:
+
+1. **Groups** observations by semantic similarity
+2. **Merges** related observations into a single memory
+3. **Weights** by frequency — if multiple observations say the same thing, confidence increases
+4. **Preserves** the source observations (they're marked as processed, not deleted)
+
+**Before compaction:**
+```
+Observation: "user likes dark mode"
+Observation: "user set theme to dark"
+Observation: "user asked if dark mode is supported"
+Observation: "user prefers TypeScript"
+Observation: "user writes TypeScript at work"
+```
+
+**After compaction:**
+```
+Memory: "User strongly prefers dark mode" (confidence: high, sources: 3)
+Memory: "User prefers TypeScript" (confidence: medium, sources: 2)
+```
+
+Compaction is **idempotent** — run it as often as you want. It only processes new observations since the last run.
+
+<Info>
+  You don't have to run compaction manually. In practice, call it periodically (every N conversations) or when observation count crosses a threshold. The MCP server can compact automatically.
+</Info>
+
+## Recall
+
+Recall retrieves memories relevant to a query, searching across both raw observations and compacted memories.
+
+<Tabs>
+  <Tab title="CLI">
+    ```bash
+    # Recall by topic
+    poop recall "user preferences"
+
+    # Recall with limit
+    poop recall "deployment setup" --limit 5
+
+    # Recall everything (dump all memories)
+    poop recall --all
+    ```
+  </Tab>
+
+  <Tab title="HTTP API">
+    ```bash
+    curl -X POST http://localhost:3141/memory/recall \
+      -H "Content-Type: application/json" \
+      -d '{"query": "user preferences", "limit": 10}'
+    ```
+
+    ```typescript
+    const res = await fetch("http://localhost:3141/memory/recall", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: "user preferences" }),
+    });
+
+    const { memories } = await res.json();
+    // memories: [{ content, confidence, sources, created_at }, ...]
+    ```
+  </Tab>
+
+  <Tab title="MCP">
+    ```
+    Agent: Let me check what I remember about your setup.
+    → poopabase_recall: {"query": "development environment and preferences"}
+    → Result: [
+        {"content": "User prefers TypeScript", "confidence": "medium"},
+        {"content": "User strongly prefers dark mode", "confidence": "high"},
+        {"content": "Project uses Cloudflare Workers", "confidence": "medium"}
+      ]
+    Agent: I remember you prefer TypeScript, dark mode, and you're deploying to Cloudflare Workers.
+    ```
+  </Tab>
+</Tabs>
+
+### Recall ranking
+
+Results are ranked by a combination of:
+
+- **Relevance** — how well the memory matches the query
+- **Confidence** — memories backed by more observations rank higher
+- **Recency** — recent memories get a slight boost
+
+## How agents use memory across conversations
+
+Here's the typical pattern:
+
+```
+┌─ Conversation 1 ────────────────────────────────┐
+│                                                   │
+│  User: I'm building a Next.js app with Drizzle   │
+│  Agent: → observe("project uses Next.js")         │
+│  Agent: → observe("project uses Drizzle ORM")     │
+│                                                   │
+│  User: Deploy to Vercel, not AWS                  │
+│  Agent: → observe("deploy to Vercel, not AWS")    │
+│                                                   │
+└───────────────────────────────────────────────────┘
+                        │
+                    compact()
+                        │
+                        ▼
+┌─ Conversation 2 ────────────────────────────────┐
+│                                                   │
+│  Agent: → recall("project setup")                 │
+│  Agent: I see you're building a Next.js app with  │
+│         Drizzle, deploying to Vercel.             │
+│                                                   │
+│  User: Add a users table                          │
+│  Agent: (writes Drizzle schema, not raw SQL,      │
+│          because it remembers the ORM choice)     │
+│                                                   │
+└───────────────────────────────────────────────────┘
+```
+
+The key insight: **recall at the start, observe throughout**. The agent loads context before doing work, and records new facts as they emerge.
+
+## Memory storage
+
+Memories live in two tables:
+
+```sql
+-- Raw observations
+SELECT * FROM _observations ORDER BY created_at DESC;
+
+-- Compacted memories
+SELECT * FROM _memories ORDER BY confidence DESC;
+```
+
+You can query them directly with SQL if you want full control:
+
+```sql
+-- Find all high-confidence memories
+SELECT content, confidence, sources, updated_at
+FROM _memories
+WHERE confidence = 'high'
+ORDER BY updated_at DESC;
+
+-- Search observations by content
+SELECT content, created_at
+FROM _observations
+WHERE content LIKE '%typescript%';
+
+-- Count observations by tag
+SELECT
+  json_each.value AS tag,
+  COUNT(*) AS count
+FROM _observations, json_each(tags)
+GROUP BY tag
+ORDER BY count DESC;
+```
+
+## Tips for effective agent memory
+
+<CardGroup cols={2}>
+  <Card title="Be specific">
+    Observe atomic facts, not summaries. "User uses PostgreSQL 16" is better than "Discussed databases."
+  </Card>
+  <Card title="Recall early">
+    At the start of each conversation, recall relevant context. The agent should know what it knows before it starts working.
+  </Card>
+  <Card title="Compact regularly">
+    Don't let observations pile up indefinitely. Compact after every few conversations to keep recall fast and relevant.
+  </Card>
+  <Card title="Use tags">
+    Tag observations with categories ("preferences", "architecture", "decisions") to make recall more precise.
+  </Card>
+</CardGroup>
+
+<Warning>
+  Agent memory is not a replacement for a proper database. Don't observe things like "user created order #1234" — that should go in a SQL table. Memory is for context, preferences, and facts that help the agent work more effectively.
+</Warning>

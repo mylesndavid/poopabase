@@ -1,0 +1,215 @@
+---
+title: "Hybrid Search"
+description: "Combine BM25 keyword search and vector search with Reciprocal Rank Fusion."
+---
+
+# Hybrid Search
+
+poopabase supports multiple search strategies that you can use individually or combine for better results.
+
+## Search modes
+
+| Mode | How it works | Best for |
+|------|-------------|----------|
+| **Keyword (BM25)** | FTS5 full-text search | Exact terms, technical queries, known phrases |
+| **Vector** | Cosine similarity on embeddings | Semantic meaning, "similar to" queries |
+| **Hybrid** | Combines both with rank fusion | General-purpose search, best overall quality |
+
+## Keyword search (BM25)
+
+This is the default. It uses SQLite's FTS5 engine with BM25 ranking — the same algorithm behind Elasticsearch.
+
+```bash
+poop search "authentication bearer token"
+```
+
+BM25 excels when:
+- Users search for specific terms ("OAuth 2.0 redirect URI")
+- The query uses technical jargon that should match exactly
+- You want predictable, explainable results
+
+Under the hood:
+
+```sql
+SELECT
+  d.id,
+  d.source,
+  d.content,
+  fts.rank AS bm25_score
+FROM _documents_fts fts
+JOIN _documents d ON d.id = fts.rowid
+WHERE _documents_fts MATCH 'authentication bearer token'
+ORDER BY fts.rank
+LIMIT 10;
+```
+
+### BM25 tuning
+
+FTS5's BM25 considers three factors:
+
+- **Term frequency** — more mentions = more relevant (with diminishing returns)
+- **Inverse document frequency** — rare terms count more than common ones
+- **Document length normalization** — a short chunk that mentions "auth" is probably more focused than a long one
+
+You don't need to tune anything. The defaults work well for most use cases.
+
+### Advanced FTS5 queries
+
+```sql
+-- Phrase match: terms must be adjacent
+SELECT * FROM _documents_fts WHERE _documents_fts MATCH '"refresh token"';
+
+-- Boolean operators
+SELECT * FROM _documents_fts WHERE _documents_fts MATCH 'oauth AND NOT basic';
+
+-- Prefix matching
+SELECT * FROM _documents_fts WHERE _documents_fts MATCH 'auth*';
+
+-- Near query: terms within N words of each other
+SELECT * FROM _documents_fts WHERE _documents_fts MATCH 'NEAR(token refresh, 5)';
+
+-- Column-specific search (if you have multiple indexed columns)
+SELECT * FROM _documents_fts WHERE _documents_fts MATCH 'content:authentication';
+
+-- Combine everything
+SELECT * FROM _documents_fts
+WHERE _documents_fts MATCH '(oauth OR openid) AND token AND NOT deprecated';
+```
+
+## Vector search
+
+<Note>
+  Vector search is coming soon. The infrastructure is ready — libSQL supports `F32_BLOB` columns for native vector storage and `vector_distance_cos()` for cosine similarity. Embedding generation and automatic indexing are in active development.
+</Note>
+
+Vector search finds documents by **semantic similarity** rather than keyword matching. The query "how do I log in" would match a document about "authentication flow" even though they share no words.
+
+How it will work:
+
+```bash
+# Search with vector mode
+poop search "how do users log in" --mode vector
+
+# Specify an embedding model
+poop search "login flow" --mode vector --model text-embedding-3-small
+```
+
+Under the hood, vector search will use libSQL's native vector support:
+
+```sql
+-- Store embeddings in F32_BLOB columns
+ALTER TABLE _documents ADD COLUMN embedding F32_BLOB(1536);
+
+-- Cosine similarity search
+SELECT
+  d.id,
+  d.source,
+  d.content,
+  vector_distance_cos(d.embedding, ?) AS distance
+FROM _documents d
+ORDER BY distance ASC
+LIMIT 10;
+```
+
+### Why F32_BLOB?
+
+libSQL's `F32_BLOB` type stores float32 vectors natively in SQLite. No extensions, no separate vector database. Your embeddings live in the same `.poop.db` file as everything else.
+
+## Hybrid search
+
+Hybrid search combines keyword (BM25) and vector (semantic) results using **Reciprocal Rank Fusion (RRF)**.
+
+```bash
+poop search "authentication flow" --mode hybrid
+```
+
+### How RRF works
+
+RRF is simple and effective. It takes ranked results from multiple sources and combines them:
+
+```
+RRF_score(doc) = Σ 1 / (k + rank_i(doc))
+```
+
+Where `k` is a constant (default: 60) and `rank_i` is the document's position in each result list.
+
+**Example:**
+
+| Document | BM25 Rank | Vector Rank | RRF Score |
+|----------|-----------|-------------|-----------|
+| Auth Guide | 1 | 3 | 1/61 + 1/63 = 0.032 |
+| Login Flow | 5 | 1 | 1/65 + 1/61 = 0.032 |
+| OAuth Docs | 2 | 8 | 1/62 + 1/68 = 0.031 |
+| Token Guide | 10 | 2 | 1/70 + 1/62 = 0.030 |
+
+RRF naturally balances exact keyword matches with semantic similarity. A document that ranks well in both lists will float to the top.
+
+### When to use which mode
+
+<CardGroup cols={3}>
+  <Card title="Keyword (BM25)" icon="text">
+    **Use when:**
+    - Searching for specific terms
+    - Technical queries with exact jargon
+    - You need explainable results
+    - Speed matters most
+  </Card>
+  <Card title="Vector" icon="circle-nodes">
+    **Use when:**
+    - Queries are natural language
+    - Meaning matters more than words
+    - "Find similar" use cases
+    - Users might not know the right terms
+  </Card>
+  <Card title="Hybrid" icon="layer-group">
+    **Use when:**
+    - You want the best overall quality
+    - Queries could be either technical or natural
+    - Building a general-purpose search
+    - You're not sure which mode to pick
+  </Card>
+</CardGroup>
+
+## Search via the API
+
+```bash
+curl -X POST http://localhost:3141/search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "authentication",
+    "mode": "keyword",
+    "limit": 10,
+    "expand": true
+  }'
+```
+
+Response:
+
+```json
+{
+  "results": [
+    {
+      "id": "chunk_a1b2c3",
+      "source": "docs/auth.md",
+      "section": "Authentication > Overview",
+      "content": "All API requests must be authenticated using...",
+      "score": 2.341
+    }
+  ],
+  "mode": "keyword",
+  "query": "authentication",
+  "total": 1
+}
+```
+
+## Search via MCP
+
+```
+Agent: I need to find how authentication works in this project.
+→ poopabase_search: {"query": "authentication flow", "limit": 5}
+→ Result: [
+    {"source": "auth.md", "content": "...", "score": 2.34},
+    {"source": "api.md", "content": "...", "score": 1.87}
+  ]
+Agent: Based on the documentation, authentication uses Bearer tokens...
+```

@@ -1,0 +1,114 @@
+---
+title: "Document Ingestion"
+description: "Ingest and manage documents for full-text search."
+---
+
+# Document Ingestion
+
+Ingest markdown, text, and code files into poopabase for full-text search. Documents are automatically chunked by structure (headings, paragraphs) for precise retrieval.
+
+## Ingest Document
+
+### `POST /docs/ingest`
+
+<ParamField body="content" type="string" required>
+  The document content (markdown, plain text, or code).
+</ParamField>
+
+<ParamField body="source" type="string" required>
+  Source identifier for the document (typically the filename).
+</ParamField>
+
+<ParamField body="type" type="string">
+  Content type. One of `"markdown"`, `"text"`, or `"code"`. Defaults to `"markdown"`.
+</ParamField>
+
+### Examples
+
+<CodeGroup>
+
+```bash curl
+curl -X POST http://localhost:3141/docs/ingest \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "# Authentication\n\nUsers authenticate via JWT tokens...",
+    "source": "docs/auth.md",
+    "type": "markdown"
+  }'
+```
+
+```typescript TypeScript
+const res = await fetch("http://localhost:3141/docs/ingest", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    content: "# Authentication\n\nUsers authenticate via JWT tokens...",
+    source: "docs/auth.md",
+    type: "markdown",
+  }),
+});
+const data = await res.json();
+```
+
+```python Python
+import requests
+
+res = requests.post("http://localhost:3141/docs/ingest", json={
+    "content": "# Authentication\n\nUsers authenticate via JWT tokens...",
+    "source": "docs/auth.md",
+    "type": "markdown"
+})
+data = res.json()
+```
+
+</CodeGroup>
+
+### Response
+
+```json
+{
+  "source": "docs/auth.md",
+  "chunks": 4
+}
+```
+
+### Chunking behavior
+
+Documents are split into chunks based on their structure:
+
+- **Markdown**: Split by headings (`#`, `##`, etc.). Each section becomes a chunk with its heading preserved.
+- **Text**: Split by paragraphs (double newlines).
+- **Code**: Split by logical blocks.
+
+Each chunk is indexed in the FTS5 full-text search index for fast retrieval via the [Search API](/api-reference/search).
+
+---
+
+## List Documents
+
+### `GET /docs`
+
+List all ingested documents.
+
+```bash curl
+curl http://localhost:3141/docs
+```
+
+### Response
+
+```json
+{
+  "documents": [
+    {
+      "source": "docs/auth.md",
+      "chunks": 4,
+      "type": "markdown"
+    },
+    {
+      "source": "README.md",
+      "chunks": 12,
+      "type": "markdown"
+    }
+  ]
+}
+```
