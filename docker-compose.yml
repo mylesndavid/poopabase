@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  poopabase:
+    build: .
+    ports:
+      - "3141:3141"
+      - "3008:3008"
+    volumes:
+      - poopabase-data:/data
+    restart: unless-stopped
+    labels:
+      - "coolify.managed=true"
+
+volumes:
+  poopabase-data:
