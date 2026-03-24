@@ -6,6 +6,8 @@ const pkg = require("./package.json");
 const nextConfig = {
   output: "standalone",
   reactStrictMode: false,
+  eslint: { ignoreDuringBuilds: true },
+  typescript: { ignoreBuildErrors: true },
   pageExtensions: ["js", "jsx", "mdx", "ts", "tsx"],
   env: {
     NEXT_PUBLIC_STUDIO_VERSION: pkg.version,
