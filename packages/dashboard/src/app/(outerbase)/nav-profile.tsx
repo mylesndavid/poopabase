@@ -1,3 +1,4 @@
+"use client";
 import { Avatar } from "@/components/orbit/avatar";
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -10,25 +11,46 @@ import { cn } from "@/lib/utils";
 import {
   CaretDown,
   Gear,
+  SignIn,
   SignOut,
   ToggleLeft,
   ToggleRight,
 } from "@phosphor-icons/react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { localSettingDialog } from "./local-setting-dialog";
-import { useSession } from "./session-provider";
+
+interface PoopabaseSession {
+  email: string;
+  name: string;
+  loggedIn: boolean;
+}
 
 export default function NavigationProfile() {
   const { resolvedTheme, forcedTheme, setTheme } = useTheme();
-  const { session, isLoading } = useSession();
   const router = useRouter();
+  const [session, setSession] = useState<PoopabaseSession | null>(null);
 
   const theme = forcedTheme ?? resolvedTheme;
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("poopabase-session");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.loggedIn) {
+          setSession(parsed);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const onLogoutClicked = useCallback(() => {
-    router.push("/signout");
+    localStorage.removeItem("poopabase-session");
+    router.push("/signin");
   }, [router]);
 
   const onThemeToggleClicked = useCallback(
@@ -42,6 +64,9 @@ export default function NavigationProfile() {
     [theme, setTheme]
   );
 
+  const displayName = session?.name ?? "Guest";
+  const displayEmail = session?.email;
+
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger>
@@ -54,18 +79,8 @@ export default function NavigationProfile() {
             "flex items-center justify-start gap-2 p-1"
           )}
         >
-          <Avatar username="Guest" as="div" />
-          {!isLoading && (
-            <div className="flex-1 text-left text-sm">
-              {session
-                ? session.user.first_name + " " + session?.user.last_name
-                : "Guest"}
-            </div>
-          )}
-
-          {isLoading && (
-            <div className="bg-muted h-4 w-16 animate-pulse rounded-sm" />
-          )}
+          <Avatar username={displayName} as="div" />
+          <div className="flex-1 text-left text-sm">{displayName}</div>
           <div>
             <CaretDown weight="bold" className="h-3 w-3" />
           </div>
@@ -73,15 +88,16 @@ export default function NavigationProfile() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-[250px]">
         <div className="flex gap-2 border-b p-2">
-          <Avatar size="lg" username={session?.user?.initials ?? "Guest"} />
+          <Avatar
+            size="lg"
+            username={displayName}
+          />
 
           <div className="flex flex-col justify-center">
-            <div className="text-sm font-semibold">
-              {session
-                ? session.user.first_name + " " + session?.user.last_name
-                : "Guest"}
-            </div>
-            {session && <div className="text-sm">{session.user.email}</div>}
+            <div className="text-sm font-semibold">{displayName}</div>
+            {displayEmail && (
+              <div className="text-sm text-neutral-500">{displayEmail}</div>
+            )}
           </div>
         </div>
 
@@ -96,7 +112,6 @@ export default function NavigationProfile() {
             <Gear size={20} />
           </DropdownMenuItem>
 
-          {/* Cloud account setting removed for poopabase */}
           <DropdownMenuItem
             className="justify-between"
             onClick={onThemeToggleClicked}
@@ -108,12 +123,20 @@ export default function NavigationProfile() {
               <ToggleLeft size={20} />
             )}
           </DropdownMenuItem>
-          {session && (
+
+          {session ? (
             <DropdownMenuItem
               onClick={onLogoutClicked}
               className="justify-between"
             >
               Log out <SignOut size={20} />
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem
+              onClick={() => router.push("/signin")}
+              className="justify-between"
+            >
+              Sign in <SignIn size={20} />
             </DropdownMenuItem>
           )}
         </div>

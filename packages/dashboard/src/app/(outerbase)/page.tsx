@@ -9,8 +9,22 @@ export default function OuterbaseMainPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // poopabase: always go straight to local workspace
-    router.replace("/local");
+    // Check for poopabase localStorage session
+    try {
+      const raw = localStorage.getItem("poopabase-session");
+      if (raw) {
+        const session = JSON.parse(raw);
+        if (session?.loggedIn) {
+          router.replace("/local");
+          return;
+        }
+      }
+    } catch {
+      // ignore parse errors
+    }
+
+    // Not logged in — redirect to sign-in
+    router.replace("/signin");
   }, [router]);
 
   return (

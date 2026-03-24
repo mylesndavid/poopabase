@@ -12,8 +12,10 @@ export default function SignoutPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    // Clear both legacy Outerbase session and poopabase session
     logout();
-    router.push("/");
+    localStorage.removeItem("poopabase-session");
+    router.push("/signin");
   }, [router, logout]);
 
   return (
