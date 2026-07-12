@@ -6,10 +6,22 @@ export interface DB {
   region: string;
   last_active: number;
   generation: string | null;
+  table_count: number;
   replication: { generations: number; segments: number; bytes: number };
   functions: number;
   crons: number;
   connectionString: string;
+  connect: ConnectInfo;
+}
+
+export interface ConnectInfo {
+  host: string;
+  port: number;
+  user: string;
+  database: string;
+  poolMode: string;
+  ssl: boolean;
+  uri: string;
 }
 
 export interface Segment {

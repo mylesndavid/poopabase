@@ -45,10 +45,10 @@ export function Button({
     "inline-flex items-center justify-center gap-2 rounded-md font-normal transition-colors duration-150 select-none border disabled:opacity-40 disabled:pointer-events-none";
   const sizes = { sm: "px-2.5 py-1 text-xs", md: "px-3 py-1.5 text-[13px]" };
   const variants = {
-    default: "bg-[#2a2a2a] text-text border-borderhi hover:bg-[#333] hover:border-[#4a4a4a]",
-    primary: "bg-accent text-[#062a1c] border-accent2 font-medium hover:bg-[#34b87e]",
+    default: "bg-surface text-text border-borderhi hover:bg-elevated",
+    primary: "bg-accent text-accentdark border-transparent font-medium hover:bg-accent2",
     ghost: "text-muted border-transparent hover:text-text hover:bg-elevated",
-    danger: "bg-[#2a1a1a] text-bad border-bad/40 hover:bg-bad/20 hover:border-bad/60",
+    danger: "bg-surface text-bad border-bad/40 hover:bg-bad/5",
   };
   return (
     <button
@@ -64,11 +64,11 @@ export function Button({
 
 export function Badge({ tone, children }: { tone: "warm" | "cold" | "good" | "muted" | "accent"; children: React.ReactNode }) {
   const tones = {
-    warm: "bg-accent/10 text-accent border-accent/25",
-    cold: "bg-[#2a2a2a] text-muted border-borderhi",
-    good: "bg-accent/10 text-accent border-accent/25",
-    muted: "bg-[#2a2a2a] text-muted border-borderhi",
-    accent: "bg-accent/10 text-accent border-accent/25",
+    warm: "bg-brandwash text-greenink border-[#cfeede]",
+    cold: "bg-elevated text-muted border-border",
+    good: "bg-brandwash text-greenink border-[#cfeede]",
+    muted: "bg-elevated text-muted border-border",
+    accent: "bg-brandwash text-greenink border-[#cfeede]",
   };
   return (
     <span className={cx("inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium", tones[tone])}>
@@ -81,12 +81,53 @@ export function Dot({ tone }: { tone: "warm" | "cold" }) {
   return (
     <span
       className={cx(
-        "inline-block h-2 w-2 rounded-full",
-        tone === "warm"
-          ? "bg-accent shadow-[0_0_0_2px_rgba(62,207,142,0.18)]"
-          : "bg-subtle"
+        "inline-block h-1.5 w-1.5 rounded-full",
+        tone === "warm" ? "bg-greenink" : "bg-subtle"
       )}
     />
+  );
+}
+
+/** poopabase logomark — two streaming waves (Litestream), not a db cylinder. */
+export function Logo({ size = 20, stroke = "#05341f" }: { size?: number; stroke?: string }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={stroke}
+      strokeWidth={2.4}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 9c2.3-3.1 4.6-3.1 6.9 0s4.6 3.1 6.9 0 4.6-3.1 6.2-1" />
+      <path d="M3 15c2.3-3.1 4.6-3.1 6.9 0s4.6 3.1 6.9 0 4.6-3.1 6.2-1" />
+    </svg>
+  );
+}
+
+export function LogoTile({ className }: { className?: string }) {
+  return (
+    <div className={cx("flex items-center justify-center rounded-lg bg-accent", className)}>
+      <Logo size={17} />
+    </div>
+  );
+}
+
+/** Deterministic monogram tile for a project. */
+export function Monogram({ name, warm, className }: { name: string; warm?: boolean; className?: string }) {
+  const ch = (name.trim()[0] || "?").toUpperCase();
+  return (
+    <div
+      className={cx(
+        "flex h-6 w-6 shrink-0 items-center justify-center rounded-md border text-[11px] font-semibold",
+        warm ? "bg-brandwash text-greenink border-[#cfeede]" : "bg-elevated text-muted border-border",
+        className
+      )}
+    >
+      {ch}
+    </div>
   );
 }
 
@@ -201,6 +242,40 @@ export function Icon({ name, className }: { name: string; className?: string }) 
       </>
     ),
     bolt: <polygon points="13 2 4 14 11 14 11 22 20 10 13 10 13 2" />,
+    filter: <polygon points="3 4 21 4 14 12.5 14 19 10 21 10 12.5" />,
+    sort: (
+      <>
+        <path d="M7 4v16M7 20l-3-3M7 4l3 3" />
+        <path d="M14 7h7M14 12h5M14 17h3" />
+      </>
+    ),
+    key: (
+      <>
+        <circle cx="8" cy="8" r="4" />
+        <path d="M11 11l7 7M15 15l2-2M18 18l2-2" />
+      </>
+    ),
+    refresh: (
+      <>
+        <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+        <path d="M21 3v5h-5" />
+        <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+        <path d="M3 21v-5h5" />
+      </>
+    ),
+    plug: (
+      <>
+        <path d="M9 2v6M15 2v6" />
+        <path d="M6 8h12v3a6 6 0 0 1-12 0z" />
+        <path d="M12 20v2" />
+      </>
+    ),
+    external: (
+      <>
+        <path d="M14 4h6v6M20 4l-9 9" />
+        <path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+      </>
+    ),
     snapshot: (
       <>
         <rect x="3" y="6" width="18" height="14" rx="2" />

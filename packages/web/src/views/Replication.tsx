@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { api, type DB, type Replication as Rep } from "../api";
 import { Button, Icon, Stat, cx, fmtBytes, fmtTime } from "../ui";
 
@@ -6,15 +6,9 @@ export function Replication({ db, onChanged }: { db: DB; onChanged: () => void }
   const [rep, setRep] = useState<Rep | null>(null);
   const [bucket, setBucket] = useState<{ key: string; size: number }[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
-  const [pulse, setPulse] = useState(0);
-  const prevSegs = useRef(0);
 
   const load = async () => {
     const [r, b] = await Promise.all([api.replication(db.id), api.bucket(db.id)]);
-    if (r.segments.length !== prevSegs.current) {
-      prevSegs.current = r.segments.length;
-      setPulse((p) => p + 1);
-    }
     setRep(r);
     setBucket(b);
   };
@@ -51,17 +45,8 @@ export function Replication({ db, onChanged }: { db: DB; onChanged: () => void }
 
           {/* Stream */}
           <div className="relative flex-1">
-            <div className="relative h-px w-full bg-borderhi">
-              {isWarm && (
-                <div className="absolute inset-0 h-px w-full overflow-hidden">
-                  <div
-                    key={pulse}
-                    className="absolute -top-px left-0 h-px w-24 bg-gradient-to-r from-transparent via-accent to-transparent animate-flow"
-                  />
-                </div>
-              )}
-            </div>
-            <div className={cx("mt-2 text-center text-[11px] font-medium", isWarm ? "text-accent" : "text-subtle")}>
+            <div className={cx("h-0.5 w-full rounded-full", isWarm ? "bg-gradient-to-r from-borderhi via-accent to-borderhi" : "bg-borderhi")} />
+            <div className={cx("mt-2 text-center text-[11px] font-medium", isWarm ? "text-greenink" : "text-subtle")}>
               {isWarm ? "streaming WAL" : "sync paused"}
             </div>
             <div className="mt-0.5 text-center font-mono text-[10px] text-subtle">
@@ -107,6 +92,9 @@ export function Replication({ db, onChanged }: { db: DB; onChanged: () => void }
         <Stat label="In bucket" value={fmtBytes(stats?.totalBytes ?? 0)} sub={`${bucket.length} objects`} />
       </div>
 
+      {/* Storage growth */}
+      <StorageGrowth rep={rep} />
+
       <div className="grid grid-cols-2 gap-5">
         {/* Generations */}
         <div className="rounded-md border border-border bg-surface shadow-card">
@@ -117,7 +105,7 @@ export function Replication({ db, onChanged }: { db: DB; onChanged: () => void }
               return (
                 <div key={g.id} className="rounded-lg border border-border/70 bg-bg p-3">
                   <div className="mb-2 flex items-center justify-between">
-                    <span className="font-mono text-[12px] text-accent">gen {gi + 1} · {g.id}</span>
+                    <span className="font-mono text-[12px] text-greenink">gen {gi + 1} · {g.id}</span>
                     <span className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted">{g.reason}</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
@@ -128,7 +116,7 @@ export function Replication({ db, onChanged }: { db: DB; onChanged: () => void }
                         className={cx(
                           "flex items-center gap-1 rounded-md border px-1.5 py-1 font-mono text-[10px]",
                           s.kind === "snapshot"
-                            ? "border-accent/30 bg-accent/10 text-accent"
+                            ? "border-[#cfeede] bg-brandwash text-greenink"
                             : "border-border bg-elevated text-muted"
                         )}
                       >
@@ -164,6 +152,39 @@ export function Replication({ db, onChanged }: { db: DB; onChanged: () => void }
   );
 }
 
+function StorageGrowth({ rep }: { rep: Rep | null }) {
+  const segs = [...(rep?.segments ?? [])].sort((a, b) => a.created_at - b.created_at);
+  let cum = 0;
+  const points = segs.map((s) => {
+    cum += s.size;
+    return { cum, kind: s.kind };
+  });
+  const max = points.length ? points[points.length - 1].cum : 1;
+  const restoreWindow =
+    segs.length > 1 ? Math.max(1, Math.round((segs[segs.length - 1].created_at - segs[0].created_at) / 1000)) : 0;
+  return (
+    <div className="rounded-md border border-border bg-surface shadow-card">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <span className="text-[13px] font-semibold">Storage growth</span>
+        <span className="font-mono text-[11px] text-subtle">
+          restore window ~{restoreWindow}s · {segs.length} segments
+        </span>
+      </div>
+      <div className="flex h-28 items-end gap-0.5 px-4 py-3">
+        {points.length === 0 && <div className="m-auto text-[12px] text-subtle">No segments yet.</div>}
+        {points.map((p, i) => (
+          <div
+            key={i}
+            title={`${fmtBytes(p.cum)} cumulative`}
+            style={{ height: `${Math.max(4, (p.cum / max) * 100)}%` }}
+            className={cx("flex-1 rounded-sm", p.kind === "snapshot" ? "bg-greenink" : "bg-accent/50")}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Node({
   icon,
   title,
@@ -175,11 +196,11 @@ function Node({
   subtitle: string;
   tone: "warm" | "cold" | "accent";
 }) {
-  const ring = tone === "warm" ? "border-accent/40 shadow-[0_0_30px_rgba(62,207,142,0.15)]" : tone === "accent" ? "border-accent/40 shadow-glow" : "border-border";
+  const ring = tone === "cold" ? "border-border bg-elevated" : "border-[#cfeede] bg-brandwash";
   return (
     <div className="flex w-40 shrink-0 flex-col items-center gap-2">
-      <div className={cx("flex h-16 w-16 items-center justify-center rounded-lg border bg-elevated", ring)}>
-        <Icon name={icon} className={cx("h-7 w-7", tone === "cold" ? "text-subtle" : "text-accent")} />
+      <div className={cx("flex h-16 w-16 items-center justify-center rounded-lg border", ring)}>
+        <Icon name={icon} className={cx("h-7 w-7", tone === "cold" ? "text-subtle" : "text-greenink")} />
       </div>
       <div className="text-center">
         <div className="truncate text-[13px] font-medium">{title}</div>

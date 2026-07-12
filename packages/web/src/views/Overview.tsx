@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { api, type DB, type RunRec } from "../api";
-import { Badge, Button, Icon, cx, fmtAgo, fmtBytes } from "../ui";
+import { Badge, Button, Icon, LogoTile, cx, fmtAgo, fmtBytes } from "../ui";
 
 export function Overview({
   db,
@@ -20,10 +20,11 @@ export function Overview({
   }, [db.id, db.last_active]);
 
   const totalRows = tables.reduce((a, t) => a + t.rows, 0);
-  const snippet = `import { connect } from "@poopabase/client";
+  const snippet = `import { Client } from "pg";
 
-const db = connect("${db.connectionString}");
-const { rows } = await db.query("SELECT * FROM users");`;
+const client = new Client("${db.connect.uri}");
+await client.connect();
+const { rows } = await client.query("SELECT * FROM users");`;
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 p-6">
@@ -44,7 +45,7 @@ const { rows } = await db.query("SELECT * FROM users");`;
         <div className="col-span-2 space-y-5">
           <div className="rounded-md border border-border bg-surface p-5 shadow-card">
             <div className="mb-1 flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-accent text-[15px]">💩</div>
+              <LogoTile className="h-8 w-8" />
               <div>
                 <div className="text-[14px] font-semibold">{db.name}</div>
                 <div className="font-mono text-[11px] text-subtle">{db.id}</div>
@@ -122,7 +123,7 @@ function Metric({
         onClick && "hover:border-borderhi hover:bg-elevated/40"
       )}
     >
-      <Icon name={icon} className="h-4 w-4 text-accent" />
+      <Icon name={icon} className="h-4 w-4 text-greenink" />
       <div className="text-2xl font-semibold tabular-nums">{value}</div>
       <div className="text-[11px] text-subtle">
         {label}

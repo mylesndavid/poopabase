@@ -13,8 +13,8 @@ body,
 }
 body {
   margin: 0;
-  background: #121212;
-  color: #ededed;
+  background: #fbfbfc;
+  color: #1b1c1e;
   font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
@@ -28,13 +28,13 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #2e2e2e;
+  background: #d3d5da;
   border-radius: 8px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #444;
+  background: #b9bcc3;
   background-clip: content-box;
 }
 ::selection {
@@ -42,6 +42,6 @@ body {
 }
 
 .grain {
-  background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.015) 1px, transparent 0);
+  background-image: radial-gradient(circle at 1px 1px, rgba(16, 24, 40, 0.02) 1px, transparent 0);
   background-size: 22px 22px;
 }
