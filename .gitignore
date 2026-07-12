@@ -4,9 +4,12 @@ dist/
 *.poop.db-wal
 *.poop.db-shm
 .poopabase
+.poopabase-data/
 .env
 .DS_Store
 .next/
 package-lock.json
 .next/
 package-lock.json
+
+*.tsbuildinfo

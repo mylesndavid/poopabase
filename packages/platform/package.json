@@ -1,0 +1,30 @@
+{
+  "name": "@poopabase/platform",
+  "version": "0.1.0",
+  "description": "poopabase hosted platform — SQLite + Litestream-style streaming to bucket storage",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "poopabase-platform": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.1",
+    "@fastify/static": "^8.0.3",
+    "better-sqlite3": "^11.7.0",
+    "croner": "^9.0.0",
+    "fastify": "^5.2.0",
+    "nanoid": "^5.0.9"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^20.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

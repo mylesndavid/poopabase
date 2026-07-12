@@ -4,6 +4,21 @@ The database for agents.
 
 SQL. Documents. Vectors. Memory. One file. Built on [libSQL](https://github.com/tursodatabase/libsql).
 
+## Hosted platform (preview)
+
+A Supabase-style control plane for SQLite, powered by **Litestream-style streaming to
+bucket storage**. Start a plain SQLite DB; poopabase streams every write to a bucket so
+it survives, hibernates to near-zero cost when idle, and rehydrates in milliseconds —
+with point-in-time recovery, server functions, and cron jobs built in. Linear-grade UI.
+
+```bash
+npm install
+npm run platform     # API on :4000, dashboard on :5180
+```
+
+See [`packages/platform`](./packages/platform) (backend + replication primitives) and
+[`packages/web`](./packages/web) (dashboard).
+
 ## Features
 
 - **Full database** — Create tables, browse data, edit schemas. Powered by [Outerbase Studio](https://github.com/outerbase/studio).
