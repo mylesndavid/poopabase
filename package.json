@@ -12,7 +12,14 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces",
-    "dev:dashboard": "npm run dev -w @poopabase/dashboard"
+    "build": "npm run build --workspaces --if-present",
+    "build:platform": "npm run build -w @poopabase/web && npm run build -w @poopabase/platform",
+    "dev:dashboard": "npm run dev -w @poopabase/dashboard",
+    "dev:platform": "npm run dev -w @poopabase/platform",
+    "dev:web": "npm run dev -w @poopabase/web",
+    "platform": "concurrently -n api,web -c magenta,cyan \"npm run dev:platform\" \"npm run dev:web\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
   }
 }
