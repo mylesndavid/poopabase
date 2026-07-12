@@ -42,13 +42,13 @@ export function Button({
   type?: "button" | "submit";
 }) {
   const base =
-    "inline-flex items-center gap-1.5 rounded-md font-medium transition-all duration-150 select-none disabled:opacity-40 disabled:pointer-events-none";
+    "inline-flex items-center justify-center gap-2 rounded-md font-normal transition-colors duration-150 select-none border disabled:opacity-40 disabled:pointer-events-none";
   const sizes = { sm: "px-2.5 py-1 text-xs", md: "px-3 py-1.5 text-[13px]" };
   const variants = {
-    default: "bg-elevated text-text border border-border hover:border-borderhi hover:bg-[#1c1d1f]",
-    primary: "bg-accent text-white hover:bg-accent2 shadow-[0_1px_0_rgba(255,255,255,0.1)_inset]",
-    ghost: "text-muted hover:text-text hover:bg-elevated",
-    danger: "text-bad border border-border hover:border-bad/60 hover:bg-bad/10",
+    default: "bg-[#2a2a2a] text-text border-borderhi hover:bg-[#333] hover:border-[#4a4a4a]",
+    primary: "bg-accent text-[#062a1c] border-accent2 font-medium hover:bg-[#34b87e]",
+    ghost: "text-muted border-transparent hover:text-text hover:bg-elevated",
+    danger: "bg-[#2a1a1a] text-bad border-bad/40 hover:bg-bad/20 hover:border-bad/60",
   };
   return (
     <button
@@ -64,11 +64,11 @@ export function Button({
 
 export function Badge({ tone, children }: { tone: "warm" | "cold" | "good" | "muted" | "accent"; children: React.ReactNode }) {
   const tones = {
-    warm: "bg-good/10 text-good border-good/20",
-    cold: "bg-subtle/10 text-muted border-border",
-    good: "bg-good/10 text-good border-good/20",
-    muted: "bg-elevated text-muted border-border",
-    accent: "bg-accent/10 text-accent2 border-accent/25",
+    warm: "bg-accent/10 text-accent border-accent/25",
+    cold: "bg-[#2a2a2a] text-muted border-borderhi",
+    good: "bg-accent/10 text-accent border-accent/25",
+    muted: "bg-[#2a2a2a] text-muted border-borderhi",
+    accent: "bg-accent/10 text-accent border-accent/25",
   };
   return (
     <span className={cx("inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium", tones[tone])}>
@@ -81,15 +81,17 @@ export function Dot({ tone }: { tone: "warm" | "cold" }) {
   return (
     <span
       className={cx(
-        "inline-block h-1.5 w-1.5 rounded-full",
-        tone === "warm" ? "bg-good animate-pulseDot" : "bg-subtle"
+        "inline-block h-2 w-2 rounded-full",
+        tone === "warm"
+          ? "bg-accent shadow-[0_0_0_2px_rgba(62,207,142,0.18)]"
+          : "bg-subtle"
       )}
     />
   );
 }
 
 export function Card({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cx("rounded-xl border border-border bg-surface", className)}>{children}</div>;
+  return <div className={cx("rounded-md border border-border bg-surface shadow-card", className)}>{children}</div>;
 }
 
 export function Stat({ label, value, sub }: { label: string; value: React.ReactNode; sub?: string }) {
@@ -150,6 +152,26 @@ export function Icon({ name, className }: { name: string; className?: string }) 
       </>
     ),
     activity: <path d="M3 12h4l3 8 4-16 3 8h4" />,
+    home: (
+      <>
+        <path d="M3 11l9-7 9 7" />
+        <path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9" />
+        <path d="M9 20v-6h6v6" />
+      </>
+    ),
+    gear: (
+      <>
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+      </>
+    ),
+    book: (
+      <>
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+      </>
+    ),
+    chevron: <polyline points="6 9 12 15 18 9" />,
     plus: <path d="M12 5v14M5 12h14" />,
     play: <polygon points="6 4 20 12 6 20" />,
     moon: <path d="M20 14A8 8 0 1 1 10 4a6 6 0 0 0 10 10z" />,

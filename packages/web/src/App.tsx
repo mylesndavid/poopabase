@@ -10,15 +10,41 @@ import { CronView } from "./views/Cron";
 import { CreateModal } from "./views/CreateModal";
 
 type Tab = "overview" | "sql" | "tables" | "replication" | "functions" | "cron";
+type Product = "home" | "sql" | "tables" | "database";
 
-const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: "overview", label: "Overview", icon: "activity" },
-  { id: "sql", label: "SQL Editor", icon: "sql" },
-  { id: "tables", label: "Tables", icon: "table" },
-  { id: "replication", label: "Streaming", icon: "stream" },
-  { id: "functions", label: "Functions", icon: "fn" },
-  { id: "cron", label: "Cron Jobs", icon: "clock" },
+const PRODUCTS: { id: Product; label: string; icon: string; tab: Tab }[] = [
+  { id: "home", label: "Home", icon: "home", tab: "overview" },
+  { id: "sql", label: "SQL Editor", icon: "sql", tab: "sql" },
+  { id: "tables", label: "Table Editor", icon: "table", tab: "tables" },
+  { id: "database", label: "Database", icon: "db", tab: "replication" },
 ];
+
+const SUBNAV: Record<Product, { tab: Tab; label: string; icon: string }[]> = {
+  home: [{ tab: "overview", label: "Overview", icon: "home" }],
+  sql: [{ tab: "sql", label: "New query", icon: "sql" }],
+  tables: [{ tab: "tables", label: "All tables", icon: "table" }],
+  database: [
+    { tab: "replication", label: "Replication", icon: "stream" },
+    { tab: "functions", label: "Functions", icon: "fn" },
+    { tab: "cron", label: "Cron Jobs", icon: "clock" },
+  ],
+};
+
+const PRODUCT_OF: Record<Tab, Product> = {
+  overview: "home",
+  sql: "sql",
+  tables: "tables",
+  replication: "database",
+  functions: "database",
+  cron: "database",
+};
+
+const SECTION_LABEL: Record<Product, string> = {
+  home: "Home",
+  sql: "SQL Editor",
+  tables: "Table Editor",
+  database: "Database",
+};
 
 export function App() {
   const [dbs, setDbs] = useState<DB[]>([]);
@@ -53,6 +79,7 @@ export function App() {
   }, []);
 
   const current = useMemo(() => dbs.find((d) => d.id === selected) ?? null, [dbs, selected]);
+  const product = PRODUCT_OF[tab];
 
   const onCreate = async (name: string) => {
     const db = await api.createDatabase(name);
@@ -63,65 +90,118 @@ export function App() {
   };
 
   return (
-    <div className="grain flex h-full w-full overflow-hidden bg-bg text-text">
-      {/* Sidebar */}
-      <aside className="flex w-[264px] shrink-0 flex-col border-r border-border bg-[#0b0c0d]">
-        <div className="flex items-center gap-2.5 px-4 py-4">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-accent2 text-[15px] shadow-glow">
-            💩
-          </div>
-          <div className="flex flex-col leading-none">
-            <span className="text-[15px] font-semibold tracking-tight">poopabase</span>
-            <span className="mt-0.5 text-[10px] text-subtle">SQLite · streamed to the cloud</span>
-          </div>
+    <div className="flex h-full w-full overflow-hidden bg-bg text-text">
+      {/* Product icon rail */}
+      <nav className="flex w-[3.25rem] shrink-0 flex-col items-center border-r border-border bg-bg py-2">
+        <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-md bg-accent text-[15px] shadow-glow">
+          💩
         </div>
-
-        <div className="flex items-center justify-between px-4 pb-2 pt-2">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-subtle">Databases</span>
+        <div className="flex flex-1 flex-col items-center gap-1 pt-1">
+          {PRODUCTS.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => setTab(p.tab)}
+              title={p.label}
+              className={cx(
+                "group relative flex h-9 w-9 items-center justify-center rounded-md transition-colors",
+                product === p.id ? "bg-elevated text-text" : "text-subtle hover:bg-elevated hover:text-text"
+              )}
+            >
+              {product === p.id && <span className="absolute -left-2 h-5 w-0.5 rounded-full bg-accent" />}
+              <Icon name={p.icon} className="h-[18px] w-[18px]" />
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-col items-center gap-1">
           <button
-            onClick={() => setCreating(true)}
-            className="flex h-5 w-5 items-center justify-center rounded text-muted hover:bg-elevated hover:text-text"
+            onClick={() => setShowPalette(true)}
+            title="Command menu"
+            className="flex h-9 w-9 items-center justify-center rounded-md text-subtle transition-colors hover:bg-elevated hover:text-text"
           >
-            <Icon name="plus" className="h-3.5 w-3.5" />
+            <Icon name="search" className="h-[18px] w-[18px]" />
+          </button>
+          <button
+            title="Docs"
+            className="flex h-9 w-9 items-center justify-center rounded-md text-subtle transition-colors hover:bg-elevated hover:text-text"
+          >
+            <Icon name="book" className="h-[18px] w-[18px]" />
+          </button>
+          <button
+            title="Settings"
+            className="flex h-9 w-9 items-center justify-center rounded-md text-subtle transition-colors hover:bg-elevated hover:text-text"
+          >
+            <Icon name="gear" className="h-[18px] w-[18px]" />
+          </button>
+        </div>
+      </nav>
+
+      {/* Contextual sidebar */}
+      <aside className="flex w-[15rem] shrink-0 flex-col border-r border-border bg-surface">
+        <div className="p-2">
+          <button
+            onClick={() => setShowPalette(true)}
+            className="flex w-full items-center gap-2.5 rounded-md border border-border bg-bg px-2.5 py-2 text-left transition-colors hover:border-borderhi"
+          >
+            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-accent/15 text-accent">
+              <Icon name="db" className="h-3.5 w-3.5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[13px] font-medium leading-tight text-text">
+                {current?.name ?? "Select a project"}
+              </div>
+              <div className="truncate text-[11px] leading-tight text-subtle">
+                {current ? (current.status === "warm" ? "Warm · in memory" : "Hibernated") : "no project"}
+              </div>
+            </div>
+            <Icon name="chevron" className="h-3.5 w-3.5 shrink-0 text-subtle" />
           </button>
         </div>
 
-        <div className="flex-1 space-y-0.5 overflow-y-auto px-2">
-          {dbs.map((d) => (
+        <div className="px-4 pb-1 pt-2">
+          <span className="text-[11px] font-medium uppercase tracking-wider text-subtle">{SECTION_LABEL[product]}</span>
+        </div>
+        <div className="flex-1 space-y-0.5 overflow-y-auto px-2 py-1">
+          {SUBNAV[product].map((s) => (
             <button
-              key={d.id}
-              onClick={() => setSelected(d.id)}
+              key={s.tab}
+              onClick={() => setTab(s.tab)}
               className={cx(
-                "group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors",
-                selected === d.id ? "bg-elevated" : "hover:bg-elevated/50"
+                "flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[13px] transition-colors",
+                tab === s.tab ? "bg-elevated text-text" : "text-muted hover:bg-elevated/60 hover:text-text"
               )}
             >
-              <Icon name="db" className={cx("h-4 w-4 shrink-0", selected === d.id ? "text-accent2" : "text-subtle")} />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[13px] font-medium text-text">{d.name}</div>
-                <div className="truncate font-mono text-[10px] text-subtle">{d.id}</div>
-              </div>
-              <Dot tone={d.status === "warm" ? "warm" : "cold"} />
+              <Icon name={s.icon} className={cx("h-4 w-4", tab === s.tab ? "text-accent" : "text-subtle")} />
+              {s.label}
             </button>
           ))}
-          {dbs.length === 0 && (
-            <div className="px-2.5 py-6 text-center text-[12px] text-subtle">No databases yet.</div>
-          )}
         </div>
 
         <div className="border-t border-border p-2">
-          <button
-            onClick={() => setShowPalette(true)}
-            className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-[12px] text-muted hover:bg-elevated"
-          >
-            <span className="flex items-center gap-2">
-              <Icon name="search" className="h-3.5 w-3.5" /> Command
-            </span>
-            <span className="flex items-center gap-1">
-              <Kbd>⌘</Kbd>
-              <Kbd>K</Kbd>
-            </span>
-          </button>
+          <div className="mb-1 flex items-center justify-between px-1.5">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-subtle">Projects</span>
+            <button
+              onClick={() => setCreating(true)}
+              className="flex h-5 w-5 items-center justify-center rounded text-subtle hover:bg-elevated hover:text-text"
+            >
+              <Icon name="plus" className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <div className="max-h-40 space-y-0.5 overflow-y-auto">
+            {dbs.map((d) => (
+              <button
+                key={d.id}
+                onClick={() => setSelected(d.id)}
+                className={cx(
+                  "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors",
+                  selected === d.id ? "bg-elevated" : "hover:bg-elevated/60"
+                )}
+              >
+                <Dot tone={d.status === "warm" ? "warm" : "cold"} />
+                <span className="min-w-0 flex-1 truncate text-[13px] text-text">{d.name}</span>
+              </button>
+            ))}
+            {dbs.length === 0 && <div className="px-2 py-3 text-center text-[12px] text-subtle">No projects yet.</div>}
+          </div>
         </div>
       </aside>
 
@@ -129,50 +209,33 @@ export function App() {
       <main className="flex min-w-0 flex-1 flex-col">
         {current ? (
           <>
-            <header className="flex items-center justify-between border-b border-border px-6 py-3.5">
-              <div className="flex items-center gap-3">
-                <h1 className="text-[15px] font-semibold">{current.name}</h1>
+            <header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-5">
+              <div className="flex items-center gap-2 text-[13px]">
+                <span className="text-subtle">{current.name}</span>
+                <span className="text-subtle">/</span>
+                <span className="font-medium text-text">{SECTION_LABEL[product]}</span>
                 <Badge tone={current.status === "warm" ? "warm" : "cold"}>
                   <Dot tone={current.status === "warm" ? "warm" : "cold"} />
                   {current.status === "warm" ? "Warm" : "Hibernated"}
                 </Badge>
-                <span className="text-[12px] text-subtle">·</span>
-                <span className="text-[12px] text-muted">{current.region}</span>
-                <span className="text-[12px] text-subtle">· active {fmtAgo(current.last_active)}</span>
+                <span className="text-subtle">· {current.region} · active {fmtAgo(current.last_active)}</span>
               </div>
               <div className="flex items-center gap-2">
                 <code className="rounded-md border border-border bg-surface px-2.5 py-1 font-mono text-[11px] text-muted">
                   {current.connectionString}
                 </code>
                 <Button
-                  variant="ghost"
+                  variant="default"
                   size="sm"
                   onClick={() => navigator.clipboard.writeText(current.connectionString)}
                 >
-                  <Icon name="copy" className="h-3.5 w-3.5" />
+                  <Icon name="copy" className="h-3.5 w-3.5" /> Connect
                 </Button>
               </div>
             </header>
 
-            <nav className="flex items-center gap-1 border-b border-border px-4">
-              {TABS.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => setTab(t.id)}
-                  className={cx(
-                    "relative flex items-center gap-1.5 px-3 py-2.5 text-[13px] font-medium transition-colors",
-                    tab === t.id ? "text-text" : "text-subtle hover:text-muted"
-                  )}
-                >
-                  <Icon name={t.icon} className="h-3.5 w-3.5" />
-                  {t.label}
-                  {tab === t.id && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-accent" />}
-                </button>
-              ))}
-            </nav>
-
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              <div key={tab + current.id} className="animate-slideUp">
+            <div className="min-h-0 flex-1 overflow-y-auto bg-bg">
+              <div key={tab + current.id}>
                 {tab === "overview" && <Overview db={current} onGo={setTab} onChanged={refresh} />}
                 {tab === "sql" && <SqlEditor db={current} onChanged={refresh} />}
                 {tab === "tables" && <TablesView db={current} />}
@@ -208,7 +271,7 @@ export function App() {
 
 function Empty({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-4">
+    <div className="flex flex-1 flex-col items-center justify-center gap-4 bg-bg">
       <div className="text-5xl">💩</div>
       <div className="text-center">
         <h2 className="text-lg font-semibold">Spin up your first database</h2>
@@ -218,7 +281,7 @@ function Empty({ onCreate }: { onCreate: () => void }) {
         </p>
       </div>
       <Button variant="primary" onClick={onCreate}>
-        <Icon name="plus" className="h-4 w-4" /> New database
+        <Icon name="plus" className="h-4 w-4" /> New project
       </Button>
     </div>
   );
@@ -238,9 +301,9 @@ function Palette({
   const [q, setQ] = useState("");
   const filtered = dbs.filter((d) => d.name.toLowerCase().includes(q.toLowerCase()));
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-[18vh]" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 pt-[18vh]" onClick={onClose}>
       <div
-        className="w-[560px] overflow-hidden rounded-xl border border-borderhi bg-elevated shadow-pop animate-slideUp"
+        className="w-[560px] overflow-hidden rounded-lg border border-borderhi bg-elevated shadow-pop"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2.5 border-b border-border px-4 py-3">
@@ -249,7 +312,7 @@ function Palette({
             autoFocus
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search databases or run a command…"
+            placeholder="Search projects or run a command…"
             className="flex-1 bg-transparent text-[14px] text-text outline-none placeholder:text-subtle"
           />
           <Kbd>esc</Kbd>
@@ -257,15 +320,15 @@ function Palette({
         <div className="max-h-[320px] overflow-y-auto p-2">
           <button
             onClick={onCreate}
-            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-[13px] hover:bg-surface"
+            className="flex w-full items-center gap-2.5 rounded-md px-3 py-2.5 text-left text-[13px] hover:bg-surface"
           >
-            <Icon name="plus" className="h-4 w-4 text-accent2" /> Create new database
+            <Icon name="plus" className="h-4 w-4 text-accent" /> Create new project
           </button>
           {filtered.map((d) => (
             <button
               key={d.id}
               onClick={() => onSelect(d.id)}
-              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-[13px] hover:bg-surface"
+              className="flex w-full items-center gap-2.5 rounded-md px-3 py-2.5 text-left text-[13px] hover:bg-surface"
             >
               <Icon name="db" className="h-4 w-4 text-subtle" />
               <span className="flex-1">{d.name}</span>

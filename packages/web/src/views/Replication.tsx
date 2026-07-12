@@ -39,7 +39,7 @@ export function Replication({ db, onChanged }: { db: DB; onChanged: () => void }
   return (
     <div className="space-y-5 p-6">
       {/* Stream diagram */}
-      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-b from-surface to-bg p-6">
+      <div className="relative overflow-hidden rounded-lg border border-border bg-surface p-6 shadow-card">
         <div className="flex items-center justify-between gap-6">
           {/* Live SQLite */}
           <Node
@@ -51,16 +51,18 @@ export function Replication({ db, onChanged }: { db: DB; onChanged: () => void }
 
           {/* Stream */}
           <div className="relative flex-1">
-            <div className="relative h-px w-full bg-gradient-to-r from-accent/10 via-accent/40 to-accent/10">
+            <div className="relative h-px w-full bg-borderhi">
               {isWarm && (
-                <div
-                  key={pulse}
-                  className="absolute -top-[3px] left-0 h-1.5 w-16 rounded-full bg-accent2 shadow-glow animate-flow"
-                />
+                <div className="absolute inset-0 h-px w-full overflow-hidden">
+                  <div
+                    key={pulse}
+                    className="absolute -top-px left-0 h-px w-24 bg-gradient-to-r from-transparent via-accent to-transparent animate-flow"
+                  />
+                </div>
               )}
             </div>
-            <div className="mt-2 text-center text-[11px] font-medium text-accent2">
-              {isWarm ? "streaming WAL →" : "sync paused"}
+            <div className={cx("mt-2 text-center text-[11px] font-medium", isWarm ? "text-accent" : "text-subtle")}>
+              {isWarm ? "streaming WAL" : "sync paused"}
             </div>
             <div className="mt-0.5 text-center font-mono text-[10px] text-subtle">
               {stats?.walSegments ?? 0} segments · {fmtBytes(stats?.walBytes ?? 0)}
@@ -98,7 +100,7 @@ export function Replication({ db, onChanged }: { db: DB; onChanged: () => void }
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 divide-x divide-border rounded-xl border border-border bg-surface">
+      <div className="grid grid-cols-4 divide-x divide-border rounded-md border border-border bg-surface shadow-card">
         <Stat label="Generations" value={stats?.generations ?? 0} />
         <Stat label="WAL segments" value={stats?.walSegments ?? 0} sub={fmtBytes(stats?.walBytes ?? 0)} />
         <Stat label="Snapshots" value={rep?.segments.filter((s) => s.kind === "snapshot").length ?? 0} sub={fmtBytes(stats?.snapshotBytes ?? 0)} />
@@ -107,7 +109,7 @@ export function Replication({ db, onChanged }: { db: DB; onChanged: () => void }
 
       <div className="grid grid-cols-2 gap-5">
         {/* Generations */}
-        <div className="rounded-xl border border-border bg-surface">
+        <div className="rounded-md border border-border bg-surface shadow-card">
           <div className="border-b border-border px-4 py-3 text-[13px] font-semibold">Generations & segments</div>
           <div className="max-h-[340px] space-y-3 overflow-y-auto p-4">
             {rep?.generations.map((g, gi) => {
@@ -115,7 +117,7 @@ export function Replication({ db, onChanged }: { db: DB; onChanged: () => void }
               return (
                 <div key={g.id} className="rounded-lg border border-border/70 bg-bg p-3">
                   <div className="mb-2 flex items-center justify-between">
-                    <span className="font-mono text-[12px] text-accent2">gen {gi + 1} · {g.id}</span>
+                    <span className="font-mono text-[12px] text-accent">gen {gi + 1} · {g.id}</span>
                     <span className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted">{g.reason}</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
@@ -126,7 +128,7 @@ export function Replication({ db, onChanged }: { db: DB; onChanged: () => void }
                         className={cx(
                           "flex items-center gap-1 rounded-md border px-1.5 py-1 font-mono text-[10px]",
                           s.kind === "snapshot"
-                            ? "border-accent/30 bg-accent/10 text-accent2"
+                            ? "border-accent/30 bg-accent/10 text-accent"
                             : "border-border bg-elevated text-muted"
                         )}
                       >
@@ -142,7 +144,7 @@ export function Replication({ db, onChanged }: { db: DB; onChanged: () => void }
         </div>
 
         {/* Bucket objects */}
-        <div className="rounded-xl border border-border bg-surface">
+        <div className="rounded-md border border-border bg-surface shadow-card">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <span className="text-[13px] font-semibold">Bucket objects</span>
             <span className="font-mono text-[10px] text-subtle">{stats?.bucket.kind}://</span>
@@ -173,11 +175,11 @@ function Node({
   subtitle: string;
   tone: "warm" | "cold" | "accent";
 }) {
-  const ring = tone === "warm" ? "border-good/40 shadow-[0_0_30px_rgba(76,195,138,0.15)]" : tone === "accent" ? "border-accent/40 shadow-glow" : "border-border";
+  const ring = tone === "warm" ? "border-accent/40 shadow-[0_0_30px_rgba(62,207,142,0.15)]" : tone === "accent" ? "border-accent/40 shadow-glow" : "border-border";
   return (
     <div className="flex w-40 shrink-0 flex-col items-center gap-2">
-      <div className={cx("flex h-16 w-16 items-center justify-center rounded-2xl border bg-elevated", ring)}>
-        <Icon name={icon} className={cx("h-7 w-7", tone === "cold" ? "text-subtle" : tone === "warm" ? "text-good" : "text-accent2")} />
+      <div className={cx("flex h-16 w-16 items-center justify-center rounded-lg border bg-elevated", ring)}>
+        <Icon name={icon} className={cx("h-7 w-7", tone === "cold" ? "text-subtle" : "text-accent")} />
       </div>
       <div className="text-center">
         <div className="truncate text-[13px] font-medium">{title}</div>

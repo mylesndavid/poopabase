@@ -42,9 +42,9 @@ const { rows } = await db.query("SELECT * FROM users");`;
 
       <div className="grid grid-cols-3 gap-5">
         <div className="col-span-2 space-y-5">
-          <div className="rounded-xl border border-border bg-surface p-5">
+          <div className="rounded-md border border-border bg-surface p-5 shadow-card">
             <div className="mb-1 flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-accent2 text-[15px]">💩</div>
+              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-accent text-[15px]">💩</div>
               <div>
                 <div className="text-[14px] font-semibold">{db.name}</div>
                 <div className="font-mono text-[11px] text-subtle">{db.id}</div>
@@ -67,7 +67,7 @@ const { rows } = await db.query("SELECT * FROM users");`;
             </div>
           </div>
 
-          <div className="rounded-xl border border-border bg-surface">
+          <div className="rounded-md border border-border bg-surface shadow-card">
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <span className="text-[13px] font-semibold">Connect</span>
               <button
@@ -81,7 +81,7 @@ const { rows } = await db.query("SELECT * FROM users");`;
           </div>
         </div>
 
-        <div className="rounded-xl border border-border bg-surface">
+        <div className="rounded-md border border-border bg-surface shadow-card">
           <div className="border-b border-border px-4 py-3 text-[13px] font-semibold">Recent activity</div>
           <div className="max-h-[360px] space-y-1 overflow-y-auto p-3">
             {runs.slice(0, 20).map((r) => (
@@ -118,11 +118,11 @@ function Metric({
     <button
       onClick={onClick}
       className={cx(
-        "flex flex-col gap-2 rounded-xl border border-border bg-surface p-4 text-left transition-colors",
-        onClick && "hover:border-borderhi"
+        "flex flex-col gap-2 rounded-md border border-border bg-surface p-4 text-left shadow-card transition-colors",
+        onClick && "hover:border-borderhi hover:bg-elevated/40"
       )}
     >
-      <Icon name={icon} className="h-4 w-4 text-subtle" />
+      <Icon name={icon} className="h-4 w-4 text-accent" />
       <div className="text-2xl font-semibold tabular-nums">{value}</div>
       <div className="text-[11px] text-subtle">
         {label}

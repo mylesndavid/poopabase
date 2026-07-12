@@ -40,7 +40,7 @@ export function CronView({ db }: { db: DB }) {
 
   return (
     <div className="space-y-5 p-6">
-      <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="rounded-md border border-border bg-surface p-4 shadow-card">
         <div className="mb-3 text-[13px] font-semibold">Schedule a job</div>
         {fns.length === 0 ? (
           <p className="text-[12px] text-subtle">Create a function first — cron jobs invoke functions on a schedule.</p>
@@ -87,7 +87,7 @@ export function CronView({ db }: { db: DB }) {
                   onClick={() => setSchedule(p.value)}
                   className={cx(
                     "rounded-md border px-2 py-1 text-[11px]",
-                    schedule === p.value ? "border-accent/40 bg-accent/10 text-accent2" : "border-border text-muted hover:text-text"
+                    schedule === p.value ? "border-accent/40 bg-accent/10 text-accent" : "border-border text-muted hover:text-text"
                   )}
                 >
                   {p.label}
@@ -98,7 +98,7 @@ export function CronView({ db }: { db: DB }) {
         )}
       </div>
 
-      <div className="rounded-xl border border-border bg-surface">
+      <div className="rounded-md border border-border bg-surface shadow-card">
         <div className="border-b border-border px-4 py-3 text-[13px] font-semibold">Scheduled jobs</div>
         <div className="divide-y divide-border">
           {crons.map((c) => (
@@ -115,7 +115,7 @@ export function CronView({ db }: { db: DB }) {
               >
                 <span
                   className={cx(
-                    "absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all",
+                    "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all",
                     c.enabled ? "left-[18px]" : "left-0.5"
                   )}
                 />
@@ -128,7 +128,7 @@ export function CronView({ db }: { db: DB }) {
                   </span>
                 </div>
                 <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-subtle">
-                  <Icon name="fn" className="h-3 w-3 text-accent2" /> {fnName(c.function_id)}
+                  <Icon name="fn" className="h-3 w-3 text-accent" /> {fnName(c.function_id)}
                 </div>
               </div>
               <div className="text-right text-[11px] text-subtle">

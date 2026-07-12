@@ -40,7 +40,7 @@ export function SqlEditor({ db, onChanged }: { db: DB; onChanged: () => void }) 
         </Button>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border bg-surface">
+      <div className="overflow-hidden rounded-md border border-border bg-surface shadow-card">
         <textarea
           value={sql}
           onChange={(e) => setSql(e.target.value)}
@@ -88,7 +88,7 @@ export function SqlEditor({ db, onChanged }: { db: DB; onChanged: () => void }) 
 
 function ResultTable({ columns, rows }: { columns: string[]; rows: unknown[][] }) {
   return (
-    <div className="overflow-auto rounded-xl border border-border">
+    <div className="overflow-auto rounded-md border border-border shadow-card">
       <table className="w-full border-collapse text-[13px]">
         <thead>
           <tr className="bg-elevated">

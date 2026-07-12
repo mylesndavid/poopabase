@@ -16,11 +16,11 @@ export function CreateModal({ onClose, onCreate }: { onClose: () => void; onCrea
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div
-        className="w-[440px] overflow-hidden rounded-xl border border-borderhi bg-elevated shadow-pop animate-slideUp"
+        className="w-[440px] overflow-hidden rounded-lg border border-borderhi bg-elevated shadow-pop"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <h3 className="text-[15px] font-semibold">New database</h3>
+          <h3 className="text-[15px] font-semibold">New project</h3>
           <button onClick={onClose} className="text-subtle hover:text-text">
             <Icon name="x" className="h-4 w-4" />
           </button>
@@ -34,7 +34,7 @@ export function CreateModal({ onClose, onCreate }: { onClose: () => void; onCrea
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && submit()}
               placeholder="my-app"
-              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-[14px] text-text outline-none focus:border-accent"
+              className="w-full rounded-md border border-border bg-surface px-3 py-2 text-[14px] text-text outline-none focus:border-accent"
             />
           </div>
           <div>
@@ -44,7 +44,7 @@ export function CreateModal({ onClose, onCreate }: { onClose: () => void; onCrea
                 <button
                   key={t.name}
                   onClick={() => setName(t.name === "Blank" ? name : t.name.toLowerCase().replace(/\s+/g, "-"))}
-                  className="flex items-center gap-2.5 rounded-lg border border-border bg-surface px-3 py-2.5 text-left hover:border-borderhi"
+                  className="flex items-center gap-2.5 rounded-md border border-border bg-surface px-3 py-2.5 text-left hover:border-borderhi hover:bg-overlay"
                 >
                   <span className="text-lg">{t.emoji}</span>
                   <div>

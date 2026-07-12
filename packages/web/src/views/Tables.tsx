@@ -24,7 +24,7 @@ export function TablesView({ db }: { db: DB }) {
 
   return (
     <div className="flex h-full">
-      <div className="w-56 shrink-0 border-r border-border p-3">
+      <div className="w-56 shrink-0 border-r border-border bg-surface p-3">
         <div className="mb-2 px-1 text-[11px] uppercase tracking-wider text-subtle">Tables</div>
         <div className="space-y-0.5">
           {tables.map((t) => (

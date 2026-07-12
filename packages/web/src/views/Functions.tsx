@@ -62,7 +62,7 @@ export function FunctionsView({ db }: { db: DB }) {
 
   return (
     <div className="flex h-full">
-      <div className="w-56 shrink-0 border-r border-border p-3">
+      <div className="w-56 shrink-0 border-r border-border bg-surface p-3">
         <div className="mb-2 flex items-center justify-between px-1">
           <span className="text-[11px] uppercase tracking-wider text-subtle">Functions</span>
           <button onClick={() => setCreating(true)} className="text-muted hover:text-text">
@@ -91,7 +91,7 @@ export function FunctionsView({ db }: { db: DB }) {
                 active?.id === f.id ? "bg-elevated text-text" : "text-muted hover:bg-elevated/50"
               )}
             >
-              <Icon name="fn" className="h-3.5 w-3.5 text-accent2" /> {f.name}
+              <Icon name="fn" className="h-3.5 w-3.5 text-accent" /> {f.name}
             </button>
           ))}
           {fns.length === 0 && !creating && (
