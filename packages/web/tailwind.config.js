@@ -31,15 +31,21 @@ export default {
       boxShadow: {
         card: "0 1px 2px rgba(16,24,40,0.04)",
         pop: "0 24px 70px rgba(16,24,40,0.18), 0 0 0 1px rgba(16,24,40,0.04)",
+        drawer: "-24px 0 70px rgba(16,24,40,0.14), -1px 0 0 rgba(16,24,40,0.06)",
       },
       keyframes: {
         slideUp: {
           "0%": { opacity: "0", transform: "translateY(6px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
+        slidein: {
+          "0%": { transform: "translateX(100%)" },
+          "100%": { transform: "translateX(0)" },
+        },
       },
       animation: {
         slideUp: "slideUp 0.18s ease-out",
+        slidein: "slidein 0.22s cubic-bezier(0.32,0.72,0,1)",
       },
     },
   },

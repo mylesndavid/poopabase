@@ -337,6 +337,7 @@ export function TablesView({
       {inserting && (
         <InsertModal
           schema={schema}
+          table={table}
           onClose={() => setInserting(false)}
           onSubmit={async (values) => {
             const entries = Object.entries(values).filter(([, v]) => v !== "");
@@ -515,46 +516,101 @@ function InsertModal({
   schema,
   onClose,
   onSubmit,
+  table,
 }: {
   schema: Column[];
+  table: string;
   onClose: () => void;
   onSubmit: (values: Record<string, string>) => Promise<string | null>;
 }) {
   const [values, setValues] = useState<Record<string, string>>({});
+  const [nulls, setNulls] = useState<Record<string, boolean>>({});
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    const onEsc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onEsc);
+    return () => window.removeEventListener("keydown", onEsc);
+  }, [onClose]);
   const submit = async () => {
+    setErr(null);
     setBusy(true);
     const e = await onSubmit(values);
     setBusy(false);
     if (e) setErr(e);
   };
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f1114]/40 backdrop-blur-[2px]" onClick={onClose}>
-      <div className="w-[460px] max-w-[92vw] rounded-2xl border border-borderhi bg-surface shadow-pop" onClick={(e) => e.stopPropagation()}>
-        <div className="border-b border-border px-5 py-4 text-[15px] font-semibold">Insert row</div>
-        <div className="max-h-[60vh] space-y-3 overflow-y-auto px-5 py-4">
-          {schema.map((c) => (
-            <div key={c.name}>
-              <label className="mb-1 flex items-center gap-1.5 text-[12px] text-muted">
-                {c.pk && <Icon name="key" className="h-3 w-3 text-warn" />}
-                <span className="font-medium text-text">{c.name}</span>
-                <span className="font-mono text-[11px] text-subtle">{pgType(c.type)}</span>
-                {c.pk && <span className="text-subtle">· auto</span>}
-              </label>
-              <input
-                value={values[c.name] ?? ""}
-                onChange={(e) => setValues({ ...values, [c.name]: e.target.value })}
-                placeholder={c.pk ? "auto (leave blank)" : c.notnull ? "required" : "NULL"}
-                className="w-full rounded-md border border-border bg-bg px-2.5 py-1.5 font-mono text-[12px] text-text outline-none focus:border-accent"
-              />
+    <div className="fixed inset-0 z-50 flex justify-end bg-[#0f1114]/30" onClick={onClose}>
+      <div
+        className="flex h-full w-[480px] max-w-[94vw] animate-slidein flex-col bg-surface shadow-drawer"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex shrink-0 items-start justify-between border-b border-border px-6 py-4">
+          <div>
+            <div className="text-[15px] font-semibold text-text">Insert a new row</div>
+            <div className="mt-0.5 text-[12px] text-muted">
+              into <span className="font-mono text-greenink">{table}</span>
             </div>
-          ))}
-          {err && <div className="rounded-md border border-bad/30 bg-bad/5 px-3 py-2 font-mono text-[12px] text-bad">{err}</div>}
+          </div>
+          <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-md text-subtle hover:bg-elevated hover:text-text">
+            <Icon name="x" className="h-4 w-4" />
+          </button>
         </div>
-        <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
+          {schema.map((c) => {
+            const t = pgType(c.type);
+            const isNull = nulls[c.name] ?? false;
+            const auto = c.pk && t === "int8";
+            return (
+              <div key={c.name}>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <label className="flex items-center gap-1.5 text-[13px]">
+                    {c.pk && <Icon name="key" className="h-3.5 w-3.5 text-warn" />}
+                    <span className="font-medium text-text">{c.name}</span>
+                    <span className="font-mono text-[11px] text-subtle">{t}</span>
+                    {c.notnull && !c.pk && <span className="text-[11px] text-bad">*</span>}
+                  </label>
+                  {!c.notnull && !c.pk && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNulls({ ...nulls, [c.name]: !isNull });
+                        if (!isNull) setValues({ ...values, [c.name]: "" });
+                      }}
+                      className={cx(
+                        "rounded px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide transition-colors",
+                        isNull ? "bg-brandwash text-greenink" : "text-subtle hover:bg-elevated hover:text-muted"
+                      )}
+                    >
+                      NULL
+                    </button>
+                  )}
+                </div>
+                <input
+                  value={values[c.name] ?? ""}
+                  disabled={isNull}
+                  onChange={(e) => setValues({ ...values, [c.name]: e.target.value })}
+                  placeholder={
+                    isNull ? "NULL" : auto ? "Auto-generated" : c.notnull ? `Enter ${t} value` : "Optional"
+                  }
+                  className={cx(
+                    "w-full rounded-lg border bg-bg px-3 py-2 font-mono text-[13px] text-text outline-none transition-colors placeholder:text-subtle focus:border-accent focus:ring-2 focus:ring-accent/20",
+                    isNull ? "border-dashed border-border italic text-subtle" : "border-border"
+                  )}
+                />
+                {auto && <p className="mt-1 text-[11px] text-subtle">Primary key — leave blank to auto-generate.</p>}
+              </div>
+            );
+          })}
+          {err && (
+            <div className="rounded-lg border border-bad/30 bg-bad/5 px-3 py-2 font-mono text-[12px] text-bad">{err}</div>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border bg-bg/40 px-6 py-4">
           <Button variant="default" size="sm" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" size="sm" onClick={submit} disabled={busy}>Insert row</Button>
+          <Button variant="primary" size="sm" onClick={submit} disabled={busy}>
+            {busy ? "Saving…" : "Save"}
+          </Button>
         </div>
       </div>
     </div>
