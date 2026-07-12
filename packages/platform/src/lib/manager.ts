@@ -88,6 +88,7 @@ export class Manager {
       region,
       last_active: now,
       generation: null,
+      table_count: 0,
     };
     this.store.insertDatabase(rec);
     const handle = this.open(id);
@@ -117,6 +118,7 @@ export class Manager {
     // Opportunistic replication of the write path.
     if (!stmt.reader) this.replicator.sync(dbId, handle).catch(() => {});
     this.store.updateDatabase(dbId, { last_active: Date.now() });
+    if (!stmt.reader) this.refreshTableCount(dbId, handle);
     return { columns, rows, rowsAffected, durationMs };
   }
 
@@ -127,15 +129,47 @@ export class Manager {
         `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name`
       )
       .all() as { name: string }[];
-    return tables.map((t) => {
+    const result = tables.map((t) => {
       const count = handle.prepare(`SELECT COUNT(*) as c FROM "${t.name}"`).get() as { c: number };
       return { name: t.name, rows: count.c };
     });
+    this.store.updateDatabase(dbId, { table_count: result.length });
+    return result;
+  }
+
+  /** Recompute and persist the user-table count without waking the database. */
+  private refreshTableCount(dbId: string, handle: Database.Database) {
+    try {
+      const { c } = handle
+        .prepare(`SELECT COUNT(*) AS c FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`)
+        .get() as { c: number };
+      this.store.updateDatabase(dbId, { table_count: c });
+    } catch {
+      /* ignore */
+    }
   }
 
   async sync(dbId: string) {
     const handle = this.handles.get(dbId);
     return this.replicator.sync(dbId, handle);
+  }
+
+  /** Mark a database as recently used (data-plane activity). */
+  touch(dbId: string) {
+    this.store.updateDatabase(dbId, { last_active: Date.now() });
+  }
+
+  /**
+   * Resolve a Postgres connection's `database` (name or id) to a warm SQLite
+   * handle, waking it from the bucket if hibernated. Used by the pgwire server.
+   */
+  async handleForConnection(nameOrId: string): Promise<{ id: string; handle: Database.Database } | null> {
+    const rec =
+      this.store.getDatabase(nameOrId) ||
+      this.store.listDatabases().find((d) => d.name === nameOrId);
+    if (!rec) return null;
+    const handle = await this.ensureWarm(rec.id);
+    return { id: rec.id, handle };
   }
 
   async hibernate(dbId: string) {
@@ -167,6 +201,7 @@ export class Manager {
     // Re-open and open a fresh generation for the resurrected db.
     const handle = this.open(dbId);
     await this.replicator.startGeneration(dbId, "wake", handle);
+    this.refreshTableCount(dbId, handle);
     return { ...res, coldStartMs: Date.now() - started };
   }
 

@@ -6,14 +6,23 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Manager } from "./lib/manager.js";
 import { registerRoutes } from "./routes.js";
+import { PgWireServer } from "./lib/pgwire.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.POOPABASE_DATA || path.join(process.cwd(), ".poopabase-data");
 const PORT = Number(process.env.PORT || 4000);
+const PGPORT = Number(process.env.PGWIRE_PORT || 5432);
 
 async function main() {
   const manager = new Manager(DATA_DIR);
   await manager.start();
+
+  const pg = new PgWireServer(manager, PGPORT);
+  try {
+    await pg.listen();
+  } catch (e) {
+    console.error(`  pgwire failed to bind :${PGPORT} — ${(e as Error).message}`);
+  }
 
   const app = Fastify({ logger: false });
   await app.register(cors, { origin: true });
@@ -32,12 +41,14 @@ async function main() {
   app.get("/health", async () => ({ ok: true, dataDir: DATA_DIR, bucket: manager.bucket.location }));
 
   await app.listen({ port: PORT, host: "0.0.0.0" });
-  console.log(`\n  💩 poopabase platform`);
+  console.log(`\n  poopabase platform`);
   console.log(`  ├─ api      http://localhost:${PORT}/api`);
+  console.log(`  ├─ pgwire   postgresql://localhost:${PGPORT}/<database>`);
   console.log(`  ├─ data     ${DATA_DIR}`);
   console.log(`  └─ bucket   ${manager.bucket.location}\n`);
 
   const shutdown = async () => {
+    await pg.close();
     await manager.stop();
     await app.close();
     process.exit(0);

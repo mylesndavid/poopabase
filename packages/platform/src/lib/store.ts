@@ -15,6 +15,7 @@ export interface DatabaseRecord {
   region: string;
   last_active: number;
   generation: string | null;
+  table_count: number;
 }
 
 export interface GenerationRecord {
@@ -81,6 +82,12 @@ export class ControlStore {
   }
 
   private migrate() {
+    // Additive column migrations (ignored if already present).
+    try {
+      this.db.exec(`ALTER TABLE databases ADD COLUMN table_count INTEGER NOT NULL DEFAULT 0`);
+    } catch {
+      /* column already exists */
+    }
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS databases (
         id TEXT PRIMARY KEY,
@@ -89,7 +96,8 @@ export class ControlStore {
         status TEXT NOT NULL DEFAULT 'warm',
         region TEXT NOT NULL DEFAULT 'local-1',
         last_active INTEGER NOT NULL,
-        generation TEXT
+        generation TEXT,
+        table_count INTEGER NOT NULL DEFAULT 0
       );
       CREATE TABLE IF NOT EXISTS generations (
         id TEXT PRIMARY KEY,
@@ -152,7 +160,7 @@ export class ControlStore {
   insertDatabase(rec: DatabaseRecord) {
     this.db
       .prepare(
-        `INSERT INTO databases (id,name,created_at,status,region,last_active,generation) VALUES (@id,@name,@created_at,@status,@region,@last_active,@generation)`
+        `INSERT INTO databases (id,name,created_at,status,region,last_active,generation,table_count) VALUES (@id,@name,@created_at,@status,@region,@last_active,@generation,@table_count)`
       )
       .run(rec);
   }
@@ -162,7 +170,7 @@ export class ControlStore {
     const merged = { ...current, ...patch };
     this.db
       .prepare(
-        `UPDATE databases SET name=@name,status=@status,region=@region,last_active=@last_active,generation=@generation WHERE id=@id`
+        `UPDATE databases SET name=@name,status=@status,region=@region,last_active=@last_active,generation=@generation,table_count=@table_count WHERE id=@id`
       )
       .run(merged);
   }

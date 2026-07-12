@@ -211,5 +211,21 @@ function enrich(manager: Manager, id: string) {
     functions: manager.store.listFunctions(id).length,
     crons: manager.store.listCrons(id).length,
     connectionString: `poopabase://local-1/${rec.id}`,
+    connect: pgConnectionInfo(rec.name),
+  };
+}
+
+function pgConnectionInfo(dbName: string) {
+  const host = process.env.PGWIRE_HOST || "localhost";
+  const port = Number(process.env.PGWIRE_PORT || 5432);
+  const user = process.env.PGWIRE_USER || "poopabase";
+  return {
+    host,
+    port,
+    user,
+    database: dbName,
+    poolMode: "transaction",
+    ssl: false,
+    uri: `postgresql://${user}@${host}:${port}/${dbName}`,
   };
 }
